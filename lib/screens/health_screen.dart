@@ -222,6 +222,19 @@ class _HealthScreenState extends State<HealthScreen> {
     if (action == 'delete') {
       setState(() => streaks.removeWhere((s) => s.id == streak.id));
       _saveHealthData();
+    } else if (action == 'undo') {
+      final now = DateTime.now();
+      final before = streak.checkIns.length;
+      streak.checkIns.removeWhere(
+        (d) => d.year == now.year && d.month == now.month && d.day == now.day,
+      );
+      if (streak.checkIns.length != before) {
+        streak.currentStreak = (streak.currentStreak - 1)
+            .clamp(0, 999999)
+            .toInt();
+        await _saveHealthData();
+        if (mounted) setState(() {});
+      }
     } else {
       setState(() {});
       _saveHealthData();
@@ -239,9 +252,14 @@ class _HealthScreenState extends State<HealthScreen> {
   }
 
   void _toggleSelfCareTask(SelfCareTask task) {
+    final now = DateTime.now();
+    if (!task.isDone &&
+        task.cadence == SelfCareCadence.weekly &&
+        !task.scheduledDays.contains(now.weekday))
+      return;
     setState(() {
       task.isDone = !task.isDone;
-      if (task.isDone) task.lastCompletedAt = DateTime.now();
+      task.lastCompletedAt = task.isDone ? now : null;
     });
     _saveHealthData();
   }
@@ -397,33 +415,43 @@ class _HealthScreenState extends State<HealthScreen> {
                       else
                         SizedBox(
                           height: 178,
-                          child: ListView.separated(
+                          child: ReorderableListView.builder(
                             scrollDirection: Axis.horizontal,
                             itemCount: streaks.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(width: 10),
+                            onReorder: (oldIndex, newIndex) {
+                              if (newIndex > oldIndex) newIndex--;
+                              setState(() {
+                                final moved = streaks.removeAt(oldIndex);
+                                streaks.insert(newIndex, moved);
+                              });
+                              _saveHealthData();
+                            },
                             itemBuilder: (context, index) {
                               final streak = streaks[index];
-                              return Column(
-                                children: [
-                                  _StreakCard(
-                                    streak: streak,
-                                    onTap: () => _openStreakDetail(streak),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  _CheckInButton(
-                                    done:
-                                        streak.loggedToday ||
-                                        streak.loggedForCurrentPeriod,
-                                    scheduled: streak.scheduledToday,
-                                    onTap:
-                                        (!streak.scheduledToday ||
-                                            streak.loggedToday ||
-                                            streak.loggedForCurrentPeriod)
-                                        ? null
-                                        : () => _checkIn(streak),
-                                  ),
-                                ],
+                              return Padding(
+                                key: ValueKey(streak.id),
+                                padding: const EdgeInsets.only(right: 10),
+                                child: Column(
+                                  children: [
+                                    _StreakCard(
+                                      streak: streak,
+                                      onTap: () => _openStreakDetail(streak),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    _CheckInButton(
+                                      done:
+                                          streak.loggedToday ||
+                                          streak.loggedForCurrentPeriod,
+                                      scheduled: streak.scheduledToday,
+                                      onTap:
+                                          (!streak.scheduledToday ||
+                                              streak.loggedToday ||
+                                              streak.loggedForCurrentPeriod)
+                                          ? null
+                                          : () => _checkIn(streak),
+                                    ),
+                                  ],
+                                ),
                               );
                             },
                           ),
@@ -447,15 +475,23 @@ class _HealthScreenState extends State<HealthScreen> {
                           ),
                         )
                       else
-                        ...selfCareTasks.map(
-                          (task) => Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: _SelfCareRow(
-                              task: task,
-                              onToggle: () => _toggleSelfCareTask(task),
+                        ...selfCareTasks
+                            .where(
+                              (task) =>
+                                  task.cadence != SelfCareCadence.weekly ||
+                                  task.scheduledDays.contains(
+                                    DateTime.now().weekday,
+                                  ),
+                            )
+                            .map(
+                              (task) => Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: _SelfCareRow(
+                                  task: task,
+                                  onToggle: () => _toggleSelfCareTask(task),
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
 
                       // ── Checkup reminders ──
                       if (reminders.isNotEmpty) ...[
@@ -929,7 +965,13 @@ class _StreakCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Icon(streak.icon, size: 20, color: done ? doneFg : notDoneFg),
+                streak.emoji != null
+                    ? Text(streak.emoji!, style: const TextStyle(fontSize: 20))
+                    : Icon(
+                        streak.icon,
+                        size: 20,
+                        color: done ? doneFg : notDoneFg,
+                      ),
                 if (streak.sharedWithFriends)
                   Icon(
                     Icons.people_alt,
@@ -1693,6 +1735,7 @@ class _CreateStreakSheet extends StatefulWidget {
 
 class _CreateStreakSheetState extends State<_CreateStreakSheet> {
   final TextEditingController nameController = TextEditingController();
+  final TextEditingController emojiController = TextEditingController();
   IconData selectedIcon = Icons.star_outline;
   StreakCadence cadence = StreakCadence.daily;
   int weeklyTarget = 3;
@@ -1712,6 +1755,7 @@ class _CreateStreakSheetState extends State<_CreateStreakSheet> {
   @override
   void dispose() {
     nameController.dispose();
+    emojiController.dispose();
     super.dispose();
   }
 
@@ -1724,6 +1768,9 @@ class _CreateStreakSheetState extends State<_CreateStreakSheet> {
         id: 'streak-${DateTime.now().millisecondsSinceEpoch}',
         name: name,
         icon: selectedIcon,
+        emoji: emojiController.text.trim().isEmpty
+            ? null
+            : emojiController.text.trim().characters.first,
         cadence: cadence,
         weeklyTarget: weeklyTarget,
         sharedWithFriends: shareWithFriends,
@@ -1791,6 +1838,16 @@ class _CreateStreakSheetState extends State<_CreateStreakSheet> {
                   ),
                 );
               }).toList(),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: emojiController,
+              maxLength: 2,
+              decoration: const InputDecoration(
+                labelText: 'Or use one emoji',
+                hintText: '😊',
+                counterText: '',
+              ),
             ),
             const SizedBox(height: 20),
             const Text(
@@ -2003,7 +2060,54 @@ class _StreakDetailSheetState extends State<_StreakDetailSheet> {
                 ),
               ),
             ],
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              height: 46,
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  try {
+                    final code = await FriendService.instance
+                        .createStreakInvite(streak);
+                    if (!context.mounted) return;
+                    await showDialog<void>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Invite a friend'),
+                        content: Text(
+                          'Share this message:\n\nYour friend wants to start a ${streak.cadence == StreakCadence.weekly ? 'weekly' : 'daily'} ${streak.name} streak with you! Enter code $code to accept.',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text('Done'),
+                          ),
+                        ],
+                      ),
+                    );
+                  } catch (_) {}
+                },
+                icon: const Icon(Icons.person_add_alt_1_outlined, size: 17),
+                label: const Text('Invite someone to this streak'),
+              ),
+            ),
             const SizedBox(height: 20),
+            if (streak.loggedToday)
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.pop(context, 'undo'),
+                  icon: const Icon(Icons.undo_outlined, size: 17),
+                  label: const Text('Undo today\'s check-in'),
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(22),
+                    ),
+                  ),
+                ),
+              ),
+            if (streak.loggedToday) const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,
               height: 50,

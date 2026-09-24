@@ -8,11 +8,15 @@ class _SelfCareDraft {
   String name;
   IconData icon;
   SelfCareCadence cadence;
+  List<int> scheduledDays;
+  DateTime? lastCompletedAt;
   _SelfCareDraft({
     required this.name,
     required this.icon,
     this.cadence = SelfCareCadence.weekly,
-  });
+    List<int>? scheduledDays,
+    this.lastCompletedAt,
+  }) : scheduledDays = scheduledDays ?? [1];
 }
 
 class _StreakDraft {
@@ -113,6 +117,30 @@ class _HealthOnboardingState extends State<HealthOnboardingScreen> {
     });
   }
 
+  void _toggleSelfCareDay(String name, int day) {
+    setState(() {
+      final draft = _selfCareDrafts.firstWhere((d) => d.name == name);
+      if (draft.scheduledDays.contains(day)) {
+        if (draft.scheduledDays.length > 1) draft.scheduledDays.remove(day);
+      } else {
+        draft.scheduledDays.add(day);
+        draft.scheduledDays.sort();
+      }
+    });
+  }
+
+  Future<void> _pickSelfCareLastDone(String name) async {
+    final draft = _selfCareDrafts.firstWhere((d) => d.name == name);
+    final picked = await showDatePicker(
+      context: context,
+      firstDate: DateTime.now().subtract(const Duration(days: 730)),
+      lastDate: DateTime.now(),
+      initialDate: draft.lastCompletedAt ?? DateTime.now(),
+    );
+    if (picked != null && mounted)
+      setState(() => draft.lastCompletedAt = picked);
+  }
+
   void _updateStreakCadence(String name, StreakCadence cadence) {
     setState(() {
       _streakDrafts.firstWhere((d) => d.name == name).cadence = cadence;
@@ -165,6 +193,8 @@ class _HealthOnboardingState extends State<HealthOnboardingScreen> {
         name: d.name,
         icon: d.icon,
         cadence: d.cadence,
+        scheduledDays: d.scheduledDays,
+        lastCompletedAt: d.lastCompletedAt,
       ).toJson();
     }).toList();
 
@@ -296,6 +326,8 @@ class _HealthOnboardingState extends State<HealthOnboardingScreen> {
                       drafts: _selfCareDrafts,
                       onToggle: _toggleSelfCare,
                       onUpdateCadence: _updateSelfCareCadence,
+                      onToggleDay: _toggleSelfCareDay,
+                      onPickLastDone: _pickSelfCareLastDone,
                       onAddCustom: _addCustomSelfCare,
                     ),
                     1 => _StreaksStep(
@@ -349,12 +381,16 @@ class _SelfCareStep extends StatelessWidget {
   final List<_SelfCareDraft> drafts;
   final void Function(String name, IconData icon) onToggle;
   final void Function(String name, SelfCareCadence cadence) onUpdateCadence;
+  final void Function(String name, int day) onToggleDay;
+  final void Function(String name) onPickLastDone;
   final VoidCallback onAddCustom;
 
   const _SelfCareStep({
     required this.drafts,
     required this.onToggle,
     required this.onUpdateCadence,
+    required this.onToggleDay,
+    required this.onPickLastDone,
     required this.onAddCustom,
   });
 
@@ -395,6 +431,8 @@ class _SelfCareStep extends StatelessWidget {
                 child: _SelfCareDetailCard(
                   draft: d,
                   onUpdateCadence: (c) => onUpdateCadence(d.name, c),
+                  onToggleDay: (day) => onToggleDay(d.name, day),
+                  onPickLastDone: () => onPickLastDone(d.name),
                 ),
               ),
             ),
@@ -409,10 +447,14 @@ class _SelfCareStep extends StatelessWidget {
 class _SelfCareDetailCard extends StatelessWidget {
   final _SelfCareDraft draft;
   final void Function(SelfCareCadence) onUpdateCadence;
+  final void Function(int day) onToggleDay;
+  final VoidCallback onPickLastDone;
 
   const _SelfCareDetailCard({
     required this.draft,
     required this.onUpdateCadence,
+    required this.onToggleDay,
+    required this.onPickLastDone,
   });
 
   static const _options = [
@@ -475,6 +517,39 @@ class _SelfCareDetailCard extends StatelessWidget {
               );
             }).toList(),
           ),
+          if (draft.cadence == SelfCareCadence.weekly) ...[
+            const SizedBox(height: 10),
+            const Text(
+              'Which days?',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              children: [
+                for (final day in [1, 2, 3, 4, 5, 6, 7])
+                  FilterChip(
+                    label: Text(['M', 'T', 'W', 'T', 'F', 'S', 'S'][day - 1]),
+                    selected: draft.scheduledDays.contains(day),
+                    onSelected: (_) => onToggleDay(day),
+                    visualDensity: VisualDensity.compact,
+                  ),
+              ],
+            ),
+          ],
+          if (draft.cadence == SelfCareCadence.biweekly ||
+              draft.cadence == SelfCareCadence.monthly) ...[
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: onPickLastDone,
+              icon: const Icon(Icons.event_outlined, size: 16),
+              label: Text(
+                draft.lastCompletedAt == null
+                    ? 'When did you last do this?'
+                    : 'Last done ${draft.lastCompletedAt!.month}/${draft.lastCompletedAt!.day}/${draft.lastCompletedAt!.year}',
+              ),
+            ),
+          ],
         ],
       ),
     );

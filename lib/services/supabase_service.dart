@@ -209,6 +209,17 @@ class SupabaseService {
     return code as String;
   }
 
+  static Future<String> createStreakInvite({
+    required String streakName,
+    required String cadence,
+  }) async {
+    final code = await client.rpc(
+      'create_streak_invite',
+      params: {'p_streak_name': streakName, 'p_cadence': cadence},
+    );
+    return code as String;
+  }
+
   static Future<String> acceptFriendInvite(String code) async {
     final friendId = await client.rpc(
       'accept_friend_invite',
@@ -461,6 +472,10 @@ class SupabaseService {
 
   // ── Save theme preference (stored in answers['prefs']) ──
   static Future<void> saveThemePreference(String theme) async {
+    await savePreference('theme', theme);
+  }
+
+  static Future<void> savePreference(String key, dynamic value) async {
     final userId = currentUser?.id;
     if (userId == null) return;
     final existing = await fetchProfile();
@@ -470,7 +485,7 @@ class SupabaseService {
     final prefs = Map<String, dynamic>.from(
       (answers['prefs'] as Map<String, dynamic>?) ?? {},
     );
-    prefs['theme'] = theme;
+    prefs[key] = value;
     answers['prefs'] = prefs;
     await client.from('profiles').upsert({'id': userId, 'answers': answers});
   }

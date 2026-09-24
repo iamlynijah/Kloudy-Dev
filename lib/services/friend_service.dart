@@ -16,6 +16,13 @@ class FriendService {
     return SupabaseService.createFriendInvite();
   }
 
+  Future<String> createStreakInvite(Streak streak) {
+    return SupabaseService.createStreakInvite(
+      streakName: streak.name,
+      cadence: streak.cadence.name,
+    );
+  }
+
   Future<List<StreakFriend>> loadFriends() async {
     if (SupabaseService.currentUser == null) {
       _friends.clear();

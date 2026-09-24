@@ -13,6 +13,7 @@ class Streak {
   final String id;
   String name;
   IconData icon;
+  String? emoji;
   StreakCadence cadence;
 
   /// For weekly streaks: how many times per week counts as "on track"
@@ -50,6 +51,7 @@ class Streak {
     required this.id,
     required this.name,
     required this.icon,
+    this.emoji,
     required this.cadence,
     this.weeklyTarget = 3,
     List<int>? scheduledDays,
@@ -100,6 +102,7 @@ class Streak {
     'id': id,
     'name': name,
     'icon_code_point': icon.codePoint,
+    'emoji': emoji,
     'cadence': cadence.name,
     'weekly_target': weeklyTarget,
     'scheduled_days': scheduledDays,
@@ -122,6 +125,7 @@ class Streak {
     // or switch to storing an icon *name* string and mapping it
     // through a fixed const lookup table instead.
     icon: IconData(json['icon_code_point'] as int, fontFamily: 'MaterialIcons'),
+    emoji: json['emoji'] as String?,
     cadence: StreakCadence.values.firstWhere((c) => c.name == json['cadence']),
     weeklyTarget: json['weekly_target'] as int? ?? 3,
     scheduledDays: (json['scheduled_days'] as List<dynamic>? ?? [1, 3, 5])

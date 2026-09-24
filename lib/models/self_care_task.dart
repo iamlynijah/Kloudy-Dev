@@ -10,6 +10,9 @@ class SelfCareTask {
   String name;
   IconData icon;
   SelfCareCadence cadence;
+
+  /// Weekday numbers (1=Monday … 7=Sunday) for weekly routines.
+  List<int> scheduledDays;
   bool isDone;
 
   /// The date this task was last marked done — used to know when it's
@@ -22,15 +25,20 @@ class SelfCareTask {
     required this.name,
     required this.icon,
     required this.cadence,
+    List<int>? scheduledDays,
     this.isDone = false,
     this.lastCompletedAt,
-  });
+  }) : scheduledDays = scheduledDays ?? [1];
 
   /// A short status label for the checklist row, e.g. "Done", "Today",
   /// "Overdue" — mirrors the labels already used on HealthScreen.
   String get statusLabel {
     if (isDone) return 'Done';
-    if (lastCompletedAt == null) return 'Today';
+    if (lastCompletedAt == null) return 'Due now';
+    if (cadence == SelfCareCadence.weekly &&
+        !scheduledDays.contains(DateTime.now().weekday)) {
+      return 'Next scheduled day';
+    }
     final daysSince = DateTime.now().difference(lastCompletedAt!).inDays;
     final cadenceDays = switch (cadence) {
       SelfCareCadence.daily => 1,
@@ -38,31 +46,35 @@ class SelfCareTask {
       SelfCareCadence.biweekly => 14,
       SelfCareCadence.monthly => 30,
     };
-    return daysSince > cadenceDays ? 'Overdue' : 'Today';
+    return daysSince >= cadenceDays ? 'Due now' : 'Done';
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'icon_code_point': icon.codePoint,
-        'cadence': cadence.name,
-        'is_done': isDone,
-        'last_completed_at': lastCompletedAt?.toIso8601String(),
-      };
+    'id': id,
+    'name': name,
+    'icon_code_point': icon.codePoint,
+    'cadence': cadence.name,
+    'scheduled_days': scheduledDays,
+    'is_done': isDone,
+    'last_completed_at': lastCompletedAt?.toIso8601String(),
+  };
 
   factory SelfCareTask.fromJson(Map<String, dynamic> json) => SelfCareTask(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        // See the matching note in models/streak.dart re: icon tree-shaking.
-        icon: IconData(json['icon_code_point'] as int,
-            fontFamily: 'MaterialIcons'),
-        cadence: SelfCareCadence.values
-            .firstWhere((c) => c.name == json['cadence']),
-        isDone: json['is_done'] as bool? ?? false,
-        lastCompletedAt: json['last_completed_at'] != null
-            ? DateTime.parse(json['last_completed_at'] as String)
-            : null,
-      );
+    id: json['id'] as String,
+    name: json['name'] as String,
+    // See the matching note in models/streak.dart re: icon tree-shaking.
+    icon: IconData(json['icon_code_point'] as int, fontFamily: 'MaterialIcons'),
+    cadence: SelfCareCadence.values.firstWhere(
+      (c) => c.name == json['cadence'],
+    ),
+    scheduledDays: (json['scheduled_days'] as List<dynamic>? ?? [1])
+        .map((day) => (day as num).toInt())
+        .toList(),
+    isDone: json['is_done'] as bool? ?? false,
+    lastCompletedAt: json['last_completed_at'] != null
+        ? DateTime.parse(json['last_completed_at'] as String)
+        : null,
+  );
 }
 
 /// A preset option shown on the self-care onboarding screen, so the user

@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import '../services/ai_service.dart';
 import '../services/plaid_service.dart';
 import '../services/supabase_service.dart';
+import '../services/calendar_service.dart';
 import '../theme/kloudy_theme.dart';
 import '../widgets/kloudy_mark.dart';
 import 'kloudy_chat_screen.dart';
@@ -2054,6 +2055,7 @@ class _KloudyMenuSheetState extends State<_KloudyMenuSheet> {
                       child: TextField(
                         controller: _usernameCtrl,
                         autofocus: true,
+                        onChanged: (_) => setState(() {}),
                         style: TextStyle(fontSize: 13, color: onSurface),
                         decoration: InputDecoration(
                           hintText: 'username',
@@ -2162,6 +2164,24 @@ class _KloudyMenuSheetState extends State<_KloudyMenuSheet> {
         ),
         const SizedBox(height: 12),
         _SettingsRow(
+          icon: Icons.palette_outlined,
+          label: 'Theme',
+          onTap: () => _showThemePicker(context),
+        ),
+        const SizedBox(height: 8),
+        _SettingsRow(
+          icon: Icons.chat_bubble_outline,
+          label: 'Kloudy tone',
+          onTap: () => _showTonePicker(context),
+        ),
+        const SizedBox(height: 8),
+        _SettingsRow(
+          icon: Icons.link_outlined,
+          label: 'Connected accounts',
+          onTap: () => _showConnectedAccounts(context),
+        ),
+        const SizedBox(height: 8),
+        _SettingsRow(
           icon: Icons.logout,
           label: 'Log out',
           onTap: () async {
@@ -2177,6 +2197,85 @@ class _KloudyMenuSheetState extends State<_KloudyMenuSheet> {
           onTap: () => _confirmDelete(context),
         ),
       ],
+    );
+  }
+
+  Future<void> _showThemePicker(BuildContext context) async {
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Theme'),
+        children: [
+          for (final option in ['Light', 'Dim', 'System'])
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, option.toLowerCase()),
+              child: Text(option),
+            ),
+        ],
+      ),
+    );
+    if (choice != null) await SupabaseService.saveThemePreference(choice);
+  }
+
+  Future<void> _showTonePicker(BuildContext context) async {
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('How should Kloudy sound?'),
+        children: [
+          for (final option in [
+            'Warm and encouraging',
+            'Direct and practical',
+            'Calm and concise',
+          ])
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, option),
+              child: Text(option),
+            ),
+        ],
+      ),
+    );
+    if (choice != null) {
+      await SupabaseService.savePreference('kloudy_tone', choice);
+    }
+  }
+
+  Future<void> _showConnectedAccounts(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(
+              leading: Icon(Icons.account_balance_outlined),
+              title: Text('Bank connection'),
+              subtitle: Text(
+                'Remove the bank connection and stored transaction access',
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.link_off_outlined),
+              title: const Text('Disconnect bank'),
+              onTap: () async {
+                Navigator.pop(ctx);
+                try {
+                  await PlaidService.disconnect();
+                } catch (_) {}
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.calendar_month_outlined),
+              title: const Text('Disconnect Google Calendar'),
+              onTap: () async {
+                await CalendarService.disconnect();
+                if (ctx.mounted) Navigator.pop(ctx);
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 

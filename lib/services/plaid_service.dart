@@ -4,8 +4,14 @@ import '../models/transaction.dart';
 import 'supabase_service.dart';
 
 class PlaidService {
+  static Future<void> disconnect() async {
+    await SupabaseService.client.functions.invoke('plaid-disconnect');
+  }
+
   static Future<String> _getLinkToken() async {
-    final res = await SupabaseService.client.functions.invoke('plaid-link-token');
+    final res = await SupabaseService.client.functions.invoke(
+      'plaid-link-token',
+    );
     final data = res.data as Map<String, dynamic>;
     if (data['error'] != null) throw Exception(data['error']);
     return data['link_token'] as String;
@@ -47,21 +53,35 @@ class PlaidService {
     });
 
     await PlaidLink.create(
-        configuration: LinkTokenConfiguration(token: linkToken));
+      configuration: LinkTokenConfiguration(token: linkToken),
+    );
     await PlaidLink.open();
 
     return completer.future;
   }
 
   /// Fetches this month's transactions and account list via Edge Function.
-  static Future<({bool connected, String? institutionName, List<Transaction> transactions, List<PlaidAccount> accounts})>
-      fetchTransactions() async {
-    final res =
-        await SupabaseService.client.functions.invoke('plaid-transactions');
+  static Future<
+    ({
+      bool connected,
+      String? institutionName,
+      List<Transaction> transactions,
+      List<PlaidAccount> accounts,
+    })
+  >
+  fetchTransactions() async {
+    final res = await SupabaseService.client.functions.invoke(
+      'plaid-transactions',
+    );
     final data = res.data as Map<String, dynamic>;
 
     if (data['connected'] == false) {
-      return (connected: false, institutionName: null, transactions: <Transaction>[], accounts: <PlaidAccount>[]);
+      return (
+        connected: false,
+        institutionName: null,
+        transactions: <Transaction>[],
+        accounts: <PlaidAccount>[],
+      );
     }
 
     final txns = (data['transactions'] as List<dynamic>)

@@ -207,6 +207,7 @@ class _HealthOnboardingState extends State<HealthOnboardingScreen> {
         cadence: d.cadence,
         weeklyTarget: d.weeklyTarget,
         scheduledDays: d.scheduledDays,
+        autoEvaluated: d.name.toLowerCase().contains('water'),
       ).toJson();
     }).toList();
 

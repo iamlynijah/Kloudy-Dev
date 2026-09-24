@@ -74,7 +74,31 @@ class _HealthScreenState extends State<HealthScreen> {
       });
     } else {
       _populateFromData(data);
+      await _syncWaterStreak();
     }
+  }
+
+  Future<void> _syncWaterStreak() async {
+    final nutrition = await SupabaseService.fetchNutritionData();
+    final profile = nutrition;
+    if (profile == null) return;
+    final goal = (profile['water_cups_goal'] as num?)?.toInt() ?? 0;
+    final rawLog = profile['water_log'] as Map<String, dynamic>? ?? {};
+    final today = DateTime.now();
+    final key =
+        '${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    final cups = (rawLog[key] as num?)?.toInt() ?? 0;
+    if (goal <= 0 || cups < goal) return;
+    final water = streaks.where((s) => s.autoEvaluated).toList();
+    if (water.isEmpty || water.first.loggedToday) return;
+    final streak = water.first;
+    setState(() {
+      streak.checkIns.add(today);
+      streak.currentStreak++;
+      if (streak.currentStreak > streak.bestStreak)
+        streak.bestStreak = streak.currentStreak;
+    });
+    await _saveHealthData();
   }
 
   Future<void> _loadCalendar() async {
@@ -152,6 +176,11 @@ class _HealthScreenState extends State<HealthScreen> {
     final streakList = (data['streaks'] as List<dynamic>? ?? [])
         .map((j) => Streak.fromJson(j as Map<String, dynamic>))
         .toList();
+    for (final streak in streakList) {
+      if (streak.name.toLowerCase().contains('water')) {
+        streak.autoEvaluated = true;
+      }
+    }
     final rawCheckups = data['checkups'] as Map<String, dynamic>? ?? {};
 
     setState(() {
@@ -182,11 +211,34 @@ class _HealthScreenState extends State<HealthScreen> {
     }
   }
 
-  void _checkIn(Streak streak) {
-    if (!streak.scheduledToday ||
-        streak.loggedToday ||
-        streak.loggedForCurrentPeriod)
-      return;
+  Future<void> _checkIn(Streak streak) async {
+    if (streak.autoEvaluated) return;
+    if (streak.loggedToday || streak.loggedForCurrentPeriod) return;
+    if (!streak.scheduledToday && mounted) {
+      final addAnyway = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(
+            'Today isn\'t your normal ${streak.name.toLowerCase()} day',
+          ),
+          content: const Text(
+            'Add this check-in anyway? It will still count toward your weekly goal.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Add anyway'),
+            ),
+          ],
+        ),
+      );
+      if (addAnyway != true) return;
+    }
+    return;
     setState(() {
       streak.checkIns.add(DateTime.now());
       if (streak.isDaily || streak.checkInsThisWeek >= streak.weeklyTarget) {
@@ -442,9 +494,13 @@ class _HealthScreenState extends State<HealthScreen> {
                                       done:
                                           streak.loggedToday ||
                                           streak.loggedForCurrentPeriod,
-                                      scheduled: streak.scheduledToday,
+                                      scheduled:
+                                          streak.scheduledToday &&
+                                          !streak.autoEvaluated,
+                                      autoEvaluated: streak.autoEvaluated,
+                                      offSchedule: !streak.scheduledToday,
                                       onTap:
-                                          (!streak.scheduledToday ||
+                                          (streak.autoEvaluated ||
                                               streak.loggedToday ||
                                               streak.loggedForCurrentPeriod)
                                           ? null
@@ -804,10 +860,14 @@ class _CheckInButton extends StatelessWidget {
   final bool done;
   final bool scheduled;
   final VoidCallback? onTap;
+  final bool autoEvaluated;
+  final bool offSchedule;
 
   const _CheckInButton({
     required this.done,
     required this.scheduled,
+    this.autoEvaluated = false,
+    this.offSchedule = false,
     this.onTap,
   });
 
@@ -826,10 +886,14 @@ class _CheckInButton extends StatelessWidget {
         ),
         child: Center(
           child: Text(
-            done
+            autoEvaluated
+                ? 'From nutrition'
+                : done
                 ? 'Logged ✓'
                 : scheduled
                 ? '+ Log today'
+                : offSchedule
+                ? '+ Log anyway'
                 : 'Not scheduled',
             style: TextStyle(
               fontSize: 12,
@@ -1805,7 +1869,6 @@ class _CreateStreakSheetState extends State<_CreateStreakSheet> {
                 ),
               ),
             ),
-            const SizedBox(height: 18),
             const Text(
               'Icon',
               style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
@@ -2030,6 +2093,82 @@ class _StreakDetailSheetState extends State<_StreakDetailSheet> {
               ],
             ),
             const SizedBox(height: 18),
+            if (!streak.autoEvaluated) ...[
+              const Text(
+                'Schedule',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<StreakCadence>(
+                value: streak.cadence,
+                decoration: const InputDecoration(
+                  labelText: 'Repeats',
+                  isDense: true,
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: StreakCadence.daily,
+                    child: Text('Every day'),
+                  ),
+                  DropdownMenuItem(
+                    value: StreakCadence.weekly,
+                    child: Text('Several days each week'),
+                  ),
+                ],
+                onChanged: (value) {
+                  if (value != null) setState(() => streak.cadence = value);
+                },
+              ),
+              if (streak.cadence == StreakCadence.weekly) ...[
+                const SizedBox(height: 8),
+                Text(
+                  '${streak.weeklyTarget} days per week',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                Slider(
+                  value: streak.weeklyTarget.toDouble(),
+                  min: 1,
+                  max: 7,
+                  divisions: 6,
+                  onChanged: (value) => setState(() {
+                    streak.weeklyTarget = value.round();
+                    streak.scheduledDays = [
+                      1,
+                      2,
+                      3,
+                      4,
+                      5,
+                      6,
+                      7,
+                    ].take(streak.weeklyTarget).toList();
+                  }),
+                ),
+                Wrap(
+                  spacing: 4,
+                  children: [
+                    for (final day in [1, 2, 3, 4, 5, 6, 7])
+                      FilterChip(
+                        label: Text(
+                          ['M', 'T', 'W', 'T', 'F', 'S', 'S'][day - 1],
+                        ),
+                        selected: streak.scheduledDays.contains(day),
+                        onSelected: (_) => setState(() {
+                          if (streak.scheduledDays.contains(day)) {
+                            if (streak.scheduledDays.length > 1)
+                              streak.scheduledDays.remove(day);
+                          } else {
+                            streak.scheduledDays.add(day);
+                            streak.scheduledDays.sort();
+                          }
+                          streak.weeklyTarget = streak.scheduledDays.length;
+                        }),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 14),
+            ],
             if (hasFriends)
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,

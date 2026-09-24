@@ -29,6 +29,8 @@ class _WeightScreenState extends State<WeightScreen> {
   Map<String, int> _waterLog = {};
   List<WeightEntry> _weightLog = [];
   int _loggingStreak = 0;
+  List<String> _flexUsedDates = [];
+  List<String> _flexPromptedDates = [];
   String _loggingStreakLastDate = '';
   int _gymStreak = 0;
 
@@ -39,8 +41,19 @@ class _WeightScreenState extends State<WeightScreen> {
 
   String get _formattedDate {
     const months = [
-      '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      '',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     final n = DateTime.now();
     return '${months[n.month]} ${n.day}';
@@ -49,12 +62,10 @@ class _WeightScreenState extends State<WeightScreen> {
   List<FoodEntry> get _todayEntries => _foodLogs[_todayStr] ?? [];
   int get _waterToday => _waterLog[_todayStr] ?? 0;
 
-  int get _todayCalories =>
-      _todayEntries.fold(0, (sum, e) => sum + e.calories);
+  int get _todayCalories => _todayEntries.fold(0, (sum, e) => sum + e.calories);
   double get _todayProtein =>
       _todayEntries.fold(0.0, (sum, e) => sum + e.protein);
-  double get _todayCarbs =>
-      _todayEntries.fold(0.0, (sum, e) => sum + e.carbs);
+  double get _todayCarbs => _todayEntries.fold(0.0, (sum, e) => sum + e.carbs);
   double get _todayFat => _todayEntries.fold(0.0, (sum, e) => sum + e.fat);
 
   @override
@@ -75,7 +86,8 @@ class _WeightScreenState extends State<WeightScreen> {
     final healthData = results[1];
     final profile = results[2];
 
-    final hasNutritionGoals = profile?['lose_weight'] == true ||
+    final hasNutritionGoals =
+        profile?['lose_weight'] == true ||
         profile?['build_muscle'] == true ||
         profile?['improve_nutrition'] == true;
 
@@ -95,9 +107,11 @@ class _WeightScreenState extends State<WeightScreen> {
           .map((j) => Streak.fromJson(j as Map<String, dynamic>))
           .toList();
       final gymStreak = streakList
-          .where((s) =>
-              s.name.toLowerCase().contains('gym') ||
-              s.icon.codePoint == Icons.fitness_center.codePoint)
+          .where(
+            (s) =>
+                s.name.toLowerCase().contains('gym') ||
+                s.icon.codePoint == Icons.fitness_center.codePoint,
+          )
           .firstOrNull;
       _gymStreak = gymStreak?.currentStreak ?? 0;
     }
@@ -127,20 +141,24 @@ class _WeightScreenState extends State<WeightScreen> {
 
   void _populateFromData(Map<String, dynamic> data) {
     final profileJson = data['profile'] as Map<String, dynamic>?;
-    final profile =
-        profileJson != null ? NutritionProfile.fromJson(profileJson) : null;
+    final profile = profileJson != null
+        ? NutritionProfile.fromJson(profileJson)
+        : null;
 
     final foodLogsRaw = data['food_logs'] as Map<String, dynamic>? ?? {};
-    final foodLogs = foodLogsRaw.map((date, entries) => MapEntry(
-          date,
-          (entries as List<dynamic>)
-              .map((e) => FoodEntry.fromJson(e as Map<String, dynamic>))
-              .toList(),
-        ));
+    final foodLogs = foodLogsRaw.map(
+      (date, entries) => MapEntry(
+        date,
+        (entries as List<dynamic>)
+            .map((e) => FoodEntry.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      ),
+    );
 
     final waterLogRaw = data['water_log'] as Map<String, dynamic>? ?? {};
-    final waterLog = waterLogRaw
-        .map((date, cups) => MapEntry(date, (cups as num).toInt()));
+    final waterLog = waterLogRaw.map(
+      (date, cups) => MapEntry(date, (cups as num).toInt()),
+    );
 
     final weightLogRaw = data['weight_log'] as List<dynamic>? ?? [];
     final weightLog = weightLogRaw
@@ -149,12 +167,17 @@ class _WeightScreenState extends State<WeightScreen> {
 
     setState(() {
       _profile = profile;
-      _currentWeightLbs =
-          (data['current_weight'] as num?)?.toDouble() ?? 0;
+      _currentWeightLbs = (data['current_weight'] as num?)?.toDouble() ?? 0;
       _foodLogs = foodLogs;
       _waterLog = waterLog;
       _weightLog = weightLog;
       _loggingStreak = data['logging_streak'] as int? ?? 0;
+      _flexUsedDates = List<String>.from(
+        data['flex_used_dates'] as List? ?? [],
+      );
+      _flexPromptedDates = List<String>.from(
+        data['flex_prompted_dates'] as List? ?? [],
+      );
       _loggingStreakLastDate =
           data['logging_streak_last_date'] as String? ?? '';
       _hasData = profile != null;
@@ -169,10 +192,13 @@ class _WeightScreenState extends State<WeightScreen> {
       'current_weight': _currentWeightLbs,
       'weight_log': _weightLog.map((e) => e.toJson()).toList(),
       'food_logs': _foodLogs.map(
-          (k, v) => MapEntry(k, v.map((e) => e.toJson()).toList())),
+        (k, v) => MapEntry(k, v.map((e) => e.toJson()).toList()),
+      ),
       'water_log': _waterLog,
       'logging_streak': _loggingStreak,
       'logging_streak_last_date': _loggingStreakLastDate,
+      'flex_used_dates': _flexUsedDates,
+      'flex_prompted_dates': _flexPromptedDates,
     });
   }
 
@@ -204,12 +230,37 @@ class _WeightScreenState extends State<WeightScreen> {
           initialGoalWeight: initialGoalWeight,
           initialGoalType: initialGoalType,
           initialAge: initialAge,
+          initialProfile: _profile,
         ),
       ),
     );
     if (result != null && mounted) {
-      await SupabaseService.saveNutritionData(result);
-      _populateFromData(result);
+      final existing = await SupabaseService.fetchNutritionData() ?? {};
+      final merged = <String, dynamic>{...existing, ...result};
+      for (final key in [
+        'food_logs',
+        'water_log',
+        'logging_streak',
+        'logging_streak_last_date',
+        'flex_used_dates',
+        'flex_prompted_dates',
+      ]) {
+        if (existing.containsKey(key)) merged[key] = existing[key];
+      }
+      final oldWeights = (existing['weight_log'] as List<dynamic>? ?? [])
+          .map((entry) => Map<String, dynamic>.from(entry as Map))
+          .toList();
+      final newWeights = (result['weight_log'] as List<dynamic>? ?? [])
+          .map((entry) => Map<String, dynamic>.from(entry as Map))
+          .toList();
+      final mergedWeights = <String, Map<String, dynamic>>{
+        for (final entry in oldWeights) entry['date'] as String: entry,
+        for (final entry in newWeights) entry['date'] as String: entry,
+      };
+      merged['weight_log'] = mergedWeights.values.toList()
+        ..sort((a, b) => (a['date'] as String).compareTo(b['date'] as String));
+      await SupabaseService.saveNutritionData(merged);
+      _populateFromData(merged);
     }
   }
 
@@ -220,8 +271,9 @@ class _WeightScreenState extends State<WeightScreen> {
       final y = DateTime.now().subtract(const Duration(days: 1));
       return '${y.year}-${y.month.toString().padLeft(2, '0')}-${y.day.toString().padLeft(2, '0')}';
     }();
-    _loggingStreak =
-        _loggingStreakLastDate == yesterday ? _loggingStreak + 1 : 1;
+    _loggingStreak = _loggingStreakLastDate == yesterday
+        ? _loggingStreak + 1
+        : 1;
     _loggingStreakLastDate = today;
   }
 
@@ -238,15 +290,69 @@ class _WeightScreenState extends State<WeightScreen> {
         _updateLoggingStreak();
       });
       await _saveNutritionData();
+      await _maybeOfferFlexDay();
+    }
+  }
+
+  Future<void> _maybeOfferFlexDay() async {
+    final profile = _profile;
+    if (profile == null || profile.flexibilitySchedule == 'none') return;
+    final today = _todayStr;
+    if (_flexPromptedDates.contains(today)) return;
+    final foods = _foodLogs[today] ?? [];
+    final consumed = foods.fold<int>(0, (sum, item) => sum + item.calories);
+    final over = consumed - profile.calorieGoal;
+    if (over < 100) return;
+
+    final usedThisPeriod = _flexUsedDates.any((rawDate) {
+      final used = DateTime.tryParse(rawDate);
+      if (used == null) return false;
+      final now = DateTime.now();
+      if (profile.flexibilitySchedule == 'monthly') {
+        return used.year == now.year && used.month == now.month;
+      }
+      final start = DateTime(
+        now.year,
+        now.month,
+        now.day,
+      ).subtract(Duration(days: now.weekday - 1));
+      return !used.isBefore(start);
+    });
+    if (usedThisPeriod) return;
+
+    _flexPromptedDates = [..._flexPromptedDates, today];
+    await _saveNutritionData();
+    if (!mounted) return;
+    final useDay = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Make room for flexibility?'),
+        content: Text(
+          'You’re $over calories over your target today. Would you like to use your planned flexibility day or keep tracking as usual?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Keep tracking'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Use flexibility day'),
+          ),
+        ],
+      ),
+    );
+    if (useDay == true) {
+      _flexUsedDates = [..._flexUsedDates, today];
+      await _saveNutritionData();
     }
   }
 
   void _removeFood(FoodEntry entry) {
     setState(() {
-      _foodLogs[_todayStr] =
-          (_foodLogs[_todayStr] ?? [])
-              .where((e) => e.id != entry.id)
-              .toList();
+      _foodLogs[_todayStr] = (_foodLogs[_todayStr] ?? [])
+          .where((e) => e.id != entry.id)
+          .toList();
     });
     _saveNutritionData();
   }
@@ -299,6 +405,12 @@ class _WeightScreenState extends State<WeightScreen> {
 
     return Scaffold(
       backgroundColor: null, // inherits from theme
+      appBar: AppBar(
+        leading: Navigator.of(context).canPop() ? const BackButton() : null,
+        title: const Text('Nutrition'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
       floatingActionButton: _hasData
           ? FloatingActionButton(
               onPressed: _openOnboarding,
@@ -313,7 +425,9 @@ class _WeightScreenState extends State<WeightScreen> {
             ? const Center(child: CircularProgressIndicator())
             : SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 24, vertical: 20),
+                  horizontal: 24,
+                  vertical: 20,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -324,14 +438,19 @@ class _WeightScreenState extends State<WeightScreen> {
                         const Text(
                           'Nutrition',
                           style: TextStyle(
-                              fontSize: 28, fontWeight: FontWeight.bold),
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         Text(
                           _formattedDate,
                           style: TextStyle(
-                              fontSize: 14,
-                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.45),
-                              fontWeight: FontWeight.w500),
+                            fontSize: 14,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withOpacity(0.45),
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ],
                     ),
@@ -388,27 +507,33 @@ class _WeightScreenState extends State<WeightScreen> {
                       const Text(
                         "Today's food",
                         style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w600),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       const SizedBox(height: 10),
-                      ..._mealSections.map((meal) => Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: _MealSection(
-                              meal: meal,
-                              entries: _todayEntries
-                                  .where((e) => e.meal == meal)
-                                  .toList(),
-                              onAdd: () => _addFood(meal),
-                              onRemove: _removeFood,
-                            ),
-                          )),
+                      ..._mealSections.map(
+                        (meal) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _MealSection(
+                            meal: meal,
+                            entries: _todayEntries
+                                .where((e) => e.meal == meal)
+                                .toList(),
+                            onAdd: () => _addFood(meal),
+                            onRemove: _removeFood,
+                          ),
+                        ),
+                      ),
 
                       // ── Weight goal bar ──
                       const SizedBox(height: 24),
                       const Text(
                         'Weight goal',
                         style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w600),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       const SizedBox(height: 10),
                       _WeightGoalCard(
@@ -443,9 +568,13 @@ class _SetupPrompt extends StatelessWidget {
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(color: Theme.of(context).cardColor,
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.08), width: 1.5),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.08),
+            width: 1.5,
+          ),
         ),
         child: Column(
           children: [
@@ -453,31 +582,40 @@ class _SetupPrompt extends StatelessWidget {
               width: 52,
               height: 52,
               decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface, shape: BoxShape.circle),
+                color: Theme.of(context).colorScheme.surface,
+                shape: BoxShape.circle,
+              ),
               child: const Icon(Icons.restaurant_menu_outlined, size: 24),
             ),
             const SizedBox(height: 14),
-            const Text('Set up your nutrition plan',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+            const Text(
+              'Set up your nutrition plan',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+            ),
             const SizedBox(height: 6),
             Text(
               'Track calories, hit your macros, and move toward your weight goal.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                  fontSize: 13, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
+                fontSize: 13,
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+              ),
             ),
             const SizedBox(height: 16),
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary,
-                  borderRadius: BorderRadius.circular(20)),
-              child: const Text("Let's do it",
-                  style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white)),
+                color: Theme.of(context).colorScheme.primary,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Text(
+                "Let's do it",
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
             ),
           ],
         ),
@@ -505,7 +643,8 @@ class _StreakPill extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(color: Theme.of(context).cardColor,
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -554,7 +693,8 @@ class _CalorieCard extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: Theme.of(context).cardColor,
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
@@ -567,23 +707,31 @@ class _CalorieCard extends StatelessWidget {
             children: [
               Text(
                 '$consumed',
-                style:
-                    const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               Text(
                 ' / $goal cal',
                 style: TextStyle(
-                    fontSize: 16, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.45)),
+                  fontSize: 16,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.45),
+                ),
               ),
               const Spacer(),
               Text(
-                over > 0
-                    ? '$over over'
-                    : '$remaining left',
+                over > 0 ? '$over over' : '$remaining left',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
-                  color: over > 0 ? Colors.red : Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                  color: over > 0
+                      ? Colors.red
+                      : Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withOpacity(0.5),
                 ),
               ),
             ],
@@ -662,21 +810,25 @@ class _MacroPill extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: color),
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
               '${value}g',
-              style: const TextStyle(
-                  fontSize: 16, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 2),
             Text(
               'of ${goal}g',
               style: TextStyle(
-                  fontSize: 10, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.45)),
+                fontSize: 10,
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withOpacity(0.45),
+              ),
             ),
             const SizedBox(height: 6),
             ClipRRect(
@@ -684,7 +836,9 @@ class _MacroPill extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: progress,
                 minHeight: 4,
-                backgroundColor: Theme.of(context).colorScheme.onSurface.withOpacity(0.08),
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withOpacity(0.08),
                 valueColor: AlwaysStoppedAnimation<Color>(color),
               ),
             ),
@@ -713,16 +867,20 @@ class _WaterTracker extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-          color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(18)),
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(18),
+      ),
       child: Row(
         children: [
-          Icon(Icons.water_drop_outlined,
-              size: 18, color: const Color(0xFF1565C0)),
+          Icon(
+            Icons.water_drop_outlined,
+            size: 18,
+            color: const Color(0xFF1565C0),
+          ),
           const SizedBox(width: 10),
           Text(
             '$cups / $goal cups',
-            style:
-                const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
           ),
           const Spacer(),
           ...List.generate(goal.clamp(0, 10), (i) {
@@ -732,13 +890,13 @@ class _WaterTracker extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.only(left: 4),
                 child: Icon(
-                  filled
-                      ? Icons.water_drop
-                      : Icons.water_drop_outlined,
+                  filled ? Icons.water_drop : Icons.water_drop_outlined,
                   size: 20,
                   color: filled
                       ? const Color(0xFF1565C0)
-                      : Theme.of(context).colorScheme.onSurface.withOpacity(0.15),
+                      : Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withOpacity(0.15),
                 ),
               ),
             );
@@ -765,33 +923,34 @@ class _MealSection extends StatelessWidget {
   });
 
   String get _mealLabel => switch (meal) {
-        'breakfast' => 'Breakfast',
-        'lunch' => 'Lunch',
-        'dinner' => 'Dinner',
-        'snack' => 'Snacks',
-        'dessert' => 'Dessert',
-        'drinks' => 'Drinks',
-        _ => meal,
-      };
+    'breakfast' => 'Breakfast',
+    'lunch' => 'Lunch',
+    'dinner' => 'Dinner',
+    'snack' => 'Snacks',
+    'dessert' => 'Dessert',
+    'drinks' => 'Drinks',
+    _ => meal,
+  };
 
   IconData get _mealIcon => switch (meal) {
-        'breakfast' => Icons.wb_sunny_outlined,
-        'lunch' => Icons.lunch_dining_outlined,
-        'dinner' => Icons.dinner_dining_outlined,
-        'snack' => Icons.apple_outlined,
-        'dessert' => Icons.cake_outlined,
-        'drinks' => Icons.local_bar_outlined,
-        _ => Icons.restaurant_outlined,
-      };
+    'breakfast' => Icons.wb_sunny_outlined,
+    'lunch' => Icons.lunch_dining_outlined,
+    'dinner' => Icons.dinner_dining_outlined,
+    'snack' => Icons.apple_outlined,
+    'dessert' => Icons.cake_outlined,
+    'drinks' => Icons.local_bar_outlined,
+    _ => Icons.restaurant_outlined,
+  };
 
-  int get _totalCals =>
-      entries.fold(0, (sum, e) => sum + e.calories);
+  int get _totalCals => entries.fold(0, (sum, e) => sum + e.calories);
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-          color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(18)),
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(18),
+      ),
       child: Column(
         children: [
           // Section header
@@ -799,17 +958,32 @@ class _MealSection extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
             child: Row(
               children: [
-                Icon(_mealIcon, size: 16, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
+                Icon(
+                  _mealIcon,
+                  size: 16,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.5),
+                ),
                 const SizedBox(width: 8),
-                Text(_mealLabel,
-                    style: const TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w600)),
+                Text(
+                  _mealLabel,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const Spacer(),
                 if (entries.isNotEmpty)
-                  Text('$_totalCals cal',
-                      style: TextStyle(
-                          fontSize: 12,
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.45))),
+                  Text(
+                    '$_totalCals cal',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.45),
+                    ),
+                  ),
                 const SizedBox(width: 8),
                 GestureDetector(
                   onTap: onAdd,
@@ -817,7 +991,9 @@ class _MealSection extends StatelessWidget {
                     width: 26,
                     height: 26,
                     decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary, shape: BoxShape.circle),
+                      color: Theme.of(context).colorScheme.primary,
+                      shape: BoxShape.circle,
+                    ),
                     child: const Icon(Icons.add, size: 14, color: Colors.white),
                   ),
                 ),
@@ -827,7 +1003,9 @@ class _MealSection extends StatelessWidget {
           // Food entries
           if (entries.isNotEmpty) ...[
             const Divider(height: 1, indent: 14, endIndent: 14),
-            ...entries.map((e) => _FoodRow(entry: e, onRemove: () => onRemove(e))),
+            ...entries.map(
+              (e) => _FoodRow(entry: e, onRemove: () => onRemove(e)),
+            ),
           ],
         ],
       ),
@@ -852,15 +1030,22 @@ class _FoodRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(entry.name,
-                    style: const TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w500)),
+                Text(
+                  entry.name,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
                 if (hasMacros)
                   Text(
                     '${entry.protein.round()}g P · ${entry.carbs.round()}g C · ${entry.fat.round()}g F',
                     style: TextStyle(
-                        fontSize: 11,
-                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.45)),
+                      fontSize: 11,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.45),
+                    ),
                   ),
               ],
             ),
@@ -872,8 +1057,11 @@ class _FoodRow extends StatelessWidget {
           const SizedBox(width: 6),
           GestureDetector(
             onTap: onRemove,
-            child: Icon(Icons.close,
-                size: 16, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3)),
+            child: Icon(
+              Icons.close,
+              size: 16,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
+            ),
           ),
         ],
       ),
@@ -907,13 +1095,11 @@ class _WeightGoalCard extends StatelessWidget {
 
     if (hasGoal && startWeight != goalWeight) {
       if (isGain) {
-        progress = ((currentWeight - startWeight) /
-                (goalWeight - startWeight))
+        progress = ((currentWeight - startWeight) / (goalWeight - startWeight))
             .clamp(0.0, 1.0);
         remaining = (goalWeight - currentWeight).abs();
       } else {
-        progress = ((startWeight - currentWeight) /
-                (startWeight - goalWeight))
+        progress = ((startWeight - currentWeight) / (startWeight - goalWeight))
             .clamp(0.0, 1.0);
         remaining = (currentWeight - goalWeight).clamp(0.0, double.infinity);
       }
@@ -922,7 +1108,9 @@ class _WeightGoalCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-          color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(20)),
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(20),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -931,18 +1119,9 @@ class _WeightGoalCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _WeightLabel(
-                    label: 'Start',
-                    weight: startWeight,
-                    faded: true),
-                _WeightLabel(
-                    label: 'Now',
-                    weight: currentWeight,
-                    faded: false),
-                _WeightLabel(
-                    label: 'Goal',
-                    weight: goalWeight,
-                    faded: true),
+                _WeightLabel(label: 'Start', weight: startWeight, faded: true),
+                _WeightLabel(label: 'Now', weight: currentWeight, faded: false),
+                _WeightLabel(label: 'Goal', weight: goalWeight, faded: true),
               ],
             ),
             const SizedBox(height: 10),
@@ -953,8 +1132,7 @@ class _WeightGoalCard extends StatelessWidget {
                 value: progress,
                 minHeight: 12,
                 backgroundColor: const Color(0xFFF0F0F0),
-                valueColor:
-                    const AlwaysStoppedAnimation<Color>(Colors.black),
+                valueColor: const AlwaysStoppedAnimation<Color>(Colors.black),
               ),
             ),
             const SizedBox(height: 10),
@@ -963,7 +1141,9 @@ class _WeightGoalCard extends StatelessWidget {
                   ? '${remaining.toStringAsFixed(1)} lbs to go · ${(progress * 100).round()}% there'
                   : 'Goal reached!',
               style: TextStyle(
-                  fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+              ),
             ),
             const SizedBox(height: 14),
           ],
@@ -973,10 +1153,15 @@ class _WeightGoalCard extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Current weight',
-                      style: TextStyle(
-                          fontSize: 12,
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5))),
+                  Text(
+                    'Current weight',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.5),
+                    ),
+                  ),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.baseline,
                     textBaseline: TextBaseline.alphabetic,
@@ -984,11 +1169,19 @@ class _WeightGoalCard extends StatelessWidget {
                       Text(
                         currentWeight.toStringAsFixed(1),
                         style: const TextStyle(
-                            fontSize: 28, fontWeight: FontWeight.bold),
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                      Text(' lbs',
-                          style: TextStyle(
-                              fontSize: 14, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.54))),
+                      Text(
+                        ' lbs',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withOpacity(0.54),
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -998,15 +1191,21 @@ class _WeightGoalCard extends StatelessWidget {
                 onTap: onLog,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 10),
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary,
-                      borderRadius: BorderRadius.circular(20)),
-                  child: const Text('+ Log weight',
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white)),
+                    color: Theme.of(context).colorScheme.primary,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    '+ Log weight',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -1022,23 +1221,36 @@ class _WeightLabel extends StatelessWidget {
   final double weight;
   final bool faded;
 
-  const _WeightLabel(
-      {required this.label, required this.weight, required this.faded});
+  const _WeightLabel({
+    required this.label,
+    required this.weight,
+    required this.faded,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(label,
-            style: TextStyle(
-                fontSize: 11,
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(faded ? 0.4 : 0.6),
-                fontWeight: FontWeight.w500)),
-        Text('${weight.toStringAsFixed(0)} lb',
-            style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(faded ? 0.5 : 1.0))),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withOpacity(faded ? 0.4 : 0.6),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        Text(
+          '${weight.toStringAsFixed(0)} lb',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withOpacity(faded ? 0.5 : 1.0),
+          ),
+        ),
       ],
     );
   }
@@ -1066,11 +1278,17 @@ class _AddFoodSheetState extends State<_AddFoodSheet> {
 
   _ScanMode _mode = _ScanMode.manual;
   bool _scanning = false;
+  String? _scanError;
   FoodScanResult? _baseResult;
   double _quantity = 1.0;
 
   static const _mealOptions = [
-    'breakfast', 'lunch', 'dinner', 'snack', 'dessert', 'drinks',
+    'breakfast',
+    'lunch',
+    'dinner',
+    'snack',
+    'dessert',
+    'drinks',
   ];
 
   @override
@@ -1117,14 +1335,14 @@ class _AddFoodSheetState extends State<_AddFoodSheet> {
   }
 
   String _mealLabel(String m) => switch (m) {
-        'breakfast' => 'Breakfast',
-        'lunch' => 'Lunch',
-        'dinner' => 'Dinner',
-        'snack' => 'Snacks',
-        'dessert' => 'Dessert',
-        'drinks' => 'Drinks',
-        _ => m,
-      };
+    'breakfast' => 'Breakfast',
+    'lunch' => 'Lunch',
+    'dinner' => 'Dinner',
+    'snack' => 'Snacks',
+    'dessert' => 'Dessert',
+    'drinks' => 'Drinks',
+    _ => m,
+  };
 
   String _fmt(double v) =>
       v % 1 == 0 ? v.toInt().toString() : v.toStringAsFixed(1);
@@ -1134,6 +1352,7 @@ class _AddFoodSheetState extends State<_AddFoodSheet> {
       _baseResult = r;
       _quantity = 1.0;
       _scanning = false;
+      _scanError = null;
     });
     _nameCtrl.text = r.name;
     _calCtrl.text = '${r.calories}';
@@ -1158,6 +1377,7 @@ class _AddFoodSheetState extends State<_AddFoodSheet> {
   }
 
   Future<void> _scanWithCamera() async {
+    setState(() => _scanError = null);
     final picker = ImagePicker();
     final file = await picker.pickImage(
       source: ImageSource.camera,
@@ -1174,13 +1394,21 @@ class _AddFoodSheetState extends State<_AddFoodSheet> {
       if (result != null) {
         _applyResult(result);
       } else {
-        _showError("Couldn't identify the food. Try a clearer photo or use manual entry.");
-        setState(() => _scanning = false);
+        final error = SupabaseService.currentUser == null
+            ? 'Sign in to use photo analysis.'
+            : 'We couldn’t analyze this photo. Check your connection and try again, or enter the food manually.';
+        setState(() {
+          _scanning = false;
+          _scanError = error;
+        });
       }
     } catch (_) {
       if (mounted) {
-        _showError('Something went wrong. Please try again.');
-        setState(() => _scanning = false);
+        setState(() {
+          _scanning = false;
+          _scanError =
+              'Photo analysis failed. Try again or enter the food manually.';
+        });
       }
     }
   }
@@ -1224,7 +1452,9 @@ class _AddFoodSheetState extends State<_AddFoodSheet> {
         color: th.colorScheme.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: SafeArea(
         top: false,
         child: SingleChildScrollView(
@@ -1245,8 +1475,10 @@ class _AddFoodSheetState extends State<_AddFoodSheet> {
                 ),
               ),
               const SizedBox(height: 16),
-              const Text('Add food',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text(
+                'Add food',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 14),
 
               // ── Mode selector ─────────────────────────────────────────────
@@ -1273,7 +1505,10 @@ class _AddFoodSheetState extends State<_AddFoodSheet> {
                   _ModeButton(
                     label: '✏️  Manual',
                     selected: _mode == _ScanMode.manual,
-                    onTap: () => setState(() => _mode = _ScanMode.manual),
+                    onTap: () => setState(() {
+                      _mode = _ScanMode.manual;
+                      _scanError = null;
+                    }),
                   ),
                 ],
               ),
@@ -1305,13 +1540,45 @@ class _AddFoodSheetState extends State<_AddFoodSheet> {
                             : 'Analyzing with AI…',
                         style: TextStyle(
                           fontSize: 13,
-                          color: th.colorScheme.onSurface.withValues(alpha: 0.6),
+                          color: th.colorScheme.onSurface.withValues(
+                            alpha: 0.6,
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 14),
+              ],
+
+              if (_scanError != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(13),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF2DD),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.info_outline_rounded,
+                        color: Color(0xFF8A5A00),
+                      ),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Text(
+                          _scanError!,
+                          style: const TextStyle(fontSize: 12, height: 1.35),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: _scanning ? null : _scanWithCamera,
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
               ],
 
               // ── Scan result card ──────────────────────────────────────────
@@ -1338,7 +1605,9 @@ class _AddFoodSheetState extends State<_AddFoodSheet> {
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 8),
+                            horizontal: 14,
+                            vertical: 8,
+                          ),
                           decoration: BoxDecoration(
                             color: sel
                                 ? th.colorScheme.primary
@@ -1365,11 +1634,14 @@ class _AddFoodSheetState extends State<_AddFoodSheet> {
 
               // ── Quick add presets (only in manual mode without a result) ──
               if (presets.isNotEmpty && _baseResult == null) ...[
-                Text('Quick add',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: th.colorScheme.onSurface.withValues(alpha: 0.5))),
+                Text(
+                  'Quick add',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: th.colorScheme.onSurface.withValues(alpha: 0.5),
+                  ),
+                ),
                 const SizedBox(height: 8),
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
@@ -1381,26 +1653,37 @@ class _AddFoodSheetState extends State<_AddFoodSheet> {
                           onTap: () => _quickAdd(p),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
                             decoration: BoxDecoration(
                               color: th.cardColor,
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(
-                                  color: th.colorScheme.onSurface
-                                      .withValues(alpha: 0.1)),
+                                color: th.colorScheme.onSurface.withValues(
+                                  alpha: 0.1,
+                                ),
+                              ),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(p.name,
-                                    style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w500)),
-                                Text('${p.calories} cal',
-                                    style: TextStyle(
-                                        fontSize: 11,
-                                        color: th.colorScheme.onSurface
-                                            .withValues(alpha: 0.45))),
+                                Text(
+                                  p.name,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                Text(
+                                  '${p.calories} cal',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: th.colorScheme.onSurface.withValues(
+                                      alpha: 0.45,
+                                    ),
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -1421,10 +1704,13 @@ class _AddFoodSheetState extends State<_AddFoodSheet> {
                   filled: true,
                   fillColor: th.cardColor,
                   border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide.none),
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
                   contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 14),
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                 ),
               ),
               const SizedBox(height: 10),
@@ -1439,10 +1725,13 @@ class _AddFoodSheetState extends State<_AddFoodSheet> {
                   filled: true,
                   fillColor: th.cardColor,
                   border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide.none),
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
                   contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 14),
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                 ),
               ),
               const SizedBox(height: 8),
@@ -1450,35 +1739,45 @@ class _AddFoodSheetState extends State<_AddFoodSheet> {
               // ── Macros toggle ─────────────────────────────────────────────
               GestureDetector(
                 onTap: () => setState(() => _showMacros = !_showMacros),
-                child: Row(children: [
-                  Icon(
-                    _showMacros ? Icons.expand_less : Icons.expand_more,
-                    size: 18,
-                    color: th.colorScheme.onSurface.withValues(alpha: 0.5),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    _showMacros ? 'Hide macros' : '+ Add macros',
-                    style: TextStyle(
+                child: Row(
+                  children: [
+                    Icon(
+                      _showMacros ? Icons.expand_less : Icons.expand_more,
+                      size: 18,
+                      color: th.colorScheme.onSurface.withValues(alpha: 0.5),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _showMacros ? 'Hide macros' : '+ Add macros',
+                      style: TextStyle(
                         fontSize: 13,
                         color: th.colorScheme.onSurface.withValues(alpha: 0.5),
-                        fontWeight: FontWeight.w500),
-                  ),
-                ]),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
               ),
               if (_showMacros) ...[
                 const SizedBox(height: 10),
-                Row(children: [
-                  Expanded(
-                      child:
-                          _MacroInput(ctrl: _proteinCtrl, label: 'Protein (g)')),
-                  const SizedBox(width: 8),
-                  Expanded(
-                      child: _MacroInput(ctrl: _carbsCtrl, label: 'Carbs (g)')),
-                  const SizedBox(width: 8),
-                  Expanded(
-                      child: _MacroInput(ctrl: _fatCtrl, label: 'Fat (g)')),
-                ]),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _MacroInput(
+                        ctrl: _proteinCtrl,
+                        label: 'Protein (g)',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _MacroInput(ctrl: _carbsCtrl, label: 'Carbs (g)'),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _MacroInput(ctrl: _fatCtrl, label: 'Fat (g)'),
+                    ),
+                  ],
+                ),
               ],
               const SizedBox(height: 16),
 
@@ -1491,10 +1790,13 @@ class _AddFoodSheetState extends State<_AddFoodSheet> {
                     backgroundColor: th.colorScheme.primary,
                     foregroundColor: th.colorScheme.onPrimary,
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(27)),
+                      borderRadius: BorderRadius.circular(27),
+                    ),
                   ),
-                  child: const Text('Add to log',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  child: const Text(
+                    'Add to log',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
                 ),
               ),
             ],
@@ -1565,8 +1867,7 @@ class _ScanResultCard extends StatelessWidget {
     required this.theme,
   });
 
-  String _fmt(double v) =>
-      v % 1 == 0 ? '${v.toInt()}' : v.toStringAsFixed(1);
+  String _fmt(double v) => v % 1 == 0 ? '${v.toInt()}' : v.toStringAsFixed(1);
 
   @override
   Widget build(BuildContext context) {
@@ -1579,7 +1880,9 @@ class _ScanResultCard extends StatelessWidget {
         color: th.colorScheme.primary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-            color: th.colorScheme.primary.withValues(alpha: 0.25), width: 1),
+          color: th.colorScheme.primary.withValues(alpha: 0.25),
+          width: 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1590,12 +1893,16 @@ class _ScanResultCard extends StatelessWidget {
                 child: Text(
                   result.name,
                   style: const TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.w700),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: th.colorScheme.primary,
                   borderRadius: BorderRadius.circular(20),
@@ -1641,17 +1948,20 @@ class _ScanResultCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text('Servings:',
-                  style: TextStyle(
-                      fontSize: 13,
-                      color:
-                          th.colorScheme.onSurface.withValues(alpha: 0.6))),
+              Text(
+                'Servings:',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: th.colorScheme.onSurface.withValues(alpha: 0.6),
+                ),
+              ),
               const SizedBox(width: 12),
               _QtyButton(
                 icon: Icons.remove,
                 enabled: quantity > 0.5,
                 onTap: () => onQuantityChanged(
-                    double.parse((quantity - 0.5).toStringAsFixed(1))),
+                  double.parse((quantity - 0.5).toStringAsFixed(1)),
+                ),
                 theme: th,
               ),
               const SizedBox(width: 12),
@@ -1661,7 +1971,9 @@ class _ScanResultCard extends StatelessWidget {
                   _fmt(quantity),
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w700),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -1669,7 +1981,8 @@ class _ScanResultCard extends StatelessWidget {
                 icon: Icons.add,
                 enabled: quantity < 5,
                 onTap: () => onQuantityChanged(
-                    double.parse((quantity + 0.5).toStringAsFixed(1))),
+                  double.parse((quantity + 0.5).toStringAsFixed(1)),
+                ),
                 theme: th,
               ),
             ],
@@ -1693,11 +2006,14 @@ class _ScanMacroPill extends StatelessWidget {
         color: th.colorScheme.onSurface.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Text(label,
-          style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              color: th.colorScheme.onSurface.withValues(alpha: 0.7))),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+          color: th.colorScheme.onSurface.withValues(alpha: 0.7),
+        ),
+      ),
     );
   }
 }
@@ -1707,11 +2023,12 @@ class _QtyButton extends StatelessWidget {
   final bool enabled;
   final VoidCallback onTap;
   final ThemeData theme;
-  const _QtyButton(
-      {required this.icon,
-      required this.enabled,
-      required this.onTap,
-      required this.theme});
+  const _QtyButton({
+    required this.icon,
+    required this.enabled,
+    required this.onTap,
+    required this.theme,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1726,11 +2043,13 @@ class _QtyButton extends StatelessWidget {
               : theme.colorScheme.onSurface.withValues(alpha: 0.05),
           shape: BoxShape.circle,
         ),
-        child: Icon(icon,
-            size: 18,
-            color: enabled
-                ? theme.colorScheme.primary
-                : theme.colorScheme.onSurface.withValues(alpha: 0.25)),
+        child: Icon(
+          icon,
+          size: 18,
+          color: enabled
+              ? theme.colorScheme.primary
+              : theme.colorScheme.onSurface.withValues(alpha: 0.25),
+        ),
       ),
     );
   }
@@ -1746,20 +2065,20 @@ class _MacroInput extends StatelessWidget {
   Widget build(BuildContext context) {
     return TextField(
       controller: ctrl,
-      keyboardType:
-          const TextInputType.numberWithOptions(decimal: true),
-      inputFormatters: [
-        FilteringTextInputFormatter.allow(RegExp(r'[\d.]')),
-      ],
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d.]'))],
       decoration: InputDecoration(
         hintText: label,
         filled: true,
         fillColor: Theme.of(context).cardColor,
         border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide.none),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 12,
+        ),
       ),
     );
   }
@@ -1825,15 +2144,19 @@ class _BarcodeScanScreenState extends State<_BarcodeScanScreen> {
                 const Text(
                   'Camera access required',
                   style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold),
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 12),
                 Text(
                   'Go to Settings → Kloudy → Camera and enable access, then come back.',
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.65), fontSize: 14),
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.65),
+                    fontSize: 14,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 28),
@@ -1843,12 +2166,17 @@ class _BarcodeScanScreenState extends State<_BarcodeScanScreen> {
                     backgroundColor: Colors.white,
                     foregroundColor: Colors.black,
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(24)),
+                      borderRadius: BorderRadius.circular(24),
+                    ),
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 28, vertical: 14),
+                      horizontal: 28,
+                      vertical: 14,
+                    ),
                   ),
-                  child: const Text('Try again',
-                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  child: const Text(
+                    'Try again',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
                 ),
               ],
             ),
@@ -1874,11 +2202,12 @@ class _BarcodeScanScreenState extends State<_BarcodeScanScreen> {
         children: [
           MobileScanner(
             controller: _ctrl,
-            errorBuilder: (context, error, child) {
+            errorBuilder: (context, error) {
               if (error.errorCode == MobileScannerErrorCode.permissionDenied &&
                   !_permissionDenied) {
                 WidgetsBinding.instance.addPostFrameCallback(
-                    (_) => setState(() => _permissionDenied = true));
+                  (_) => setState(() => _permissionDenied = true),
+                );
               }
               return const SizedBox.shrink();
             },
@@ -1910,7 +2239,9 @@ class _BarcodeScanScreenState extends State<_BarcodeScanScreen> {
               child: Text(
                 'Point camera at barcode',
                 style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.75), fontSize: 14),
+                  color: Colors.white.withValues(alpha: 0.75),
+                  fontSize: 14,
+                ),
               ),
             ),
           ),
@@ -1938,9 +2269,10 @@ class _LogWeightSheetState extends State<_LogWeightSheet> {
   void initState() {
     super.initState();
     _ctrl = TextEditingController(
-        text: widget.currentWeight > 0
-            ? widget.currentWeight.toStringAsFixed(1)
-            : '');
+      text: widget.currentWeight > 0
+          ? widget.currentWeight.toStringAsFixed(1)
+          : '',
+    );
   }
 
   @override
@@ -1956,8 +2288,9 @@ class _LogWeightSheetState extends State<_LogWeightSheet> {
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      padding:
-          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: SafeArea(
         top: false,
         child: Padding(
@@ -1971,21 +2304,25 @@ class _LogWeightSheetState extends State<_LogWeightSheet> {
                   width: 36,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.15),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
               ),
               const SizedBox(height: 16),
-              const Text("Today's weight",
-                  style: TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text(
+                "Today's weight",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 16),
               TextField(
                 controller: _ctrl,
                 autofocus: true,
                 keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true),
+                  decimal: true,
+                ),
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(RegExp(r'[\d.]')),
                 ],
@@ -1995,13 +2332,18 @@ class _LogWeightSheetState extends State<_LogWeightSheet> {
                   filled: true,
                   fillColor: Theme.of(context).cardColor,
                   border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide.none),
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
                   contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 16),
+                    horizontal: 16,
+                    vertical: 16,
+                  ),
                 ),
                 style: const TextStyle(
-                    fontSize: 20, fontWeight: FontWeight.w600),
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               const SizedBox(height: 16),
               SizedBox(
@@ -2016,11 +2358,13 @@ class _LogWeightSheetState extends State<_LogWeightSheet> {
                     backgroundColor: Theme.of(context).colorScheme.primary,
                     foregroundColor: Theme.of(context).colorScheme.onPrimary,
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(27)),
+                      borderRadius: BorderRadius.circular(27),
+                    ),
                   ),
-                  child: const Text('Save',
-                      style: TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w600)),
+                  child: const Text(
+                    'Save',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
                 ),
               ),
             ],

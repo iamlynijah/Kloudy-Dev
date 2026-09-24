@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
-import '../config/api_config.dart';
 import '../models/chat_message.dart';
 import '../services/ai_service.dart';
 import '../services/supabase_service.dart';
+import '../widgets/commons_suggestions.dart';
+import '../widgets/kloudy_mark.dart';
 
 class KloudyConversationsScreen extends StatefulWidget {
   const KloudyConversationsScreen({super.key});
 
   @override
-  State<KloudyConversationsScreen> createState() => _KloudyConversationsScreenState();
+  State<KloudyConversationsScreen> createState() =>
+      _KloudyConversationsScreenState();
 }
 
 class _KloudyConversationsScreenState extends State<KloudyConversationsScreen> {
@@ -36,7 +38,9 @@ class _KloudyConversationsScreenState extends State<KloudyConversationsScreen> {
       _sessions = sessions;
       _userContext = context;
       _loadingContext = false;
-      _activeSessionId = sessions.isNotEmpty ? sessions.first['id'] as String : null;
+      _activeSessionId = sessions.isNotEmpty
+          ? sessions.first['id'] as String
+          : null;
     });
   }
 
@@ -81,12 +85,16 @@ class _KloudyConversationsScreenState extends State<KloudyConversationsScreen> {
         ),
         title: Row(
           children: [
-            SizedBox(
-              width: 30, height: 30,
-              child: Image.asset('assets/images/kloudy_mascot.png', fit: BoxFit.contain),
-            ),
+            const KloudyMark(size: 30),
             const SizedBox(width: 10),
-            Text('Kloudy', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: onSurface)),
+            Text(
+              'Kloudy',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: onSurface,
+              ),
+            ),
           ],
         ),
         titleSpacing: 0,
@@ -129,13 +137,20 @@ class _KloudyConversationsScreenState extends State<KloudyConversationsScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.add, color: Theme.of(context).colorScheme.onPrimary, size: 18),
+                      Icon(
+                        Icons.add,
+                        color: Theme.of(context).colorScheme.onPrimary,
+                        size: 18,
+                      ),
                       const SizedBox(width: 8),
-                      Text('New chat',
-                          style: TextStyle(
-                              color: Theme.of(context).colorScheme.onPrimary,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14)),
+                      Text(
+                        'New chat',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onPrimary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -144,21 +159,31 @@ class _KloudyConversationsScreenState extends State<KloudyConversationsScreen> {
             const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: Text('Recent',
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: onSurface.withValues(alpha: 0.45))),
+              child: Text(
+                'Recent',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: onSurface.withValues(alpha: 0.45),
+                ),
+              ),
             ),
             Expanded(
               child: _sessions.isEmpty
                   ? Center(
-                      child: Text('No conversations yet',
-                          style: TextStyle(
-                              fontSize: 13,
-                              color: onSurface.withValues(alpha: 0.4))))
+                      child: Text(
+                        'No conversations yet',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: onSurface.withValues(alpha: 0.4),
+                        ),
+                      ),
+                    )
                   : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       itemCount: _sessions.length,
                       itemBuilder: (context, i) {
                         final s = _sessions[i];
@@ -170,7 +195,9 @@ class _KloudyConversationsScreenState extends State<KloudyConversationsScreen> {
                           child: Container(
                             margin: const EdgeInsets.only(bottom: 2),
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 10),
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
                             decoration: BoxDecoration(
                               color: isActive
                                   ? onSurface.withValues(alpha: 0.08)
@@ -246,7 +273,9 @@ class _SessionChatPaneState extends State<_SessionChatPane> {
 
   Future<void> _init() async {
     if (_sessionId != null) {
-      final history = await SupabaseService.fetchChatHistory(sessionId: _sessionId);
+      final history = await SupabaseService.fetchChatHistory(
+        sessionId: _sessionId,
+      );
       if (!mounted) return;
       setState(() {
         _messages.addAll(history.map((j) => ChatMessage.fromJson(j)));
@@ -264,7 +293,9 @@ class _SessionChatPaneState extends State<_SessionChatPane> {
     if (trimmed.isEmpty) return;
 
     if (_sessionId == null) {
-      final title = trimmed.length > 45 ? '${trimmed.substring(0, 45)}...' : trimmed;
+      final title = trimmed.length > 45
+          ? '${trimmed.substring(0, 45)}...'
+          : trimmed;
       try {
         final id = await SupabaseService.createChatSession(title: title);
         _sessionId = id;
@@ -281,11 +312,13 @@ class _SessionChatPaneState extends State<_SessionChatPane> {
     _scrollToBottom();
 
     await SupabaseService.saveChatMessage(
-        sessionId: _sessionId, role: 'user', content: trimmed);
+      sessionId: _sessionId,
+      role: 'user',
+      content: trimmed,
+    );
 
     try {
       final reply = await AiService.send(
-        apiKey: kAnthropicApiKey,
         history: _messages.sublist(0, _messages.length - 1),
         message: trimmed,
         userContext: widget.userContext,
@@ -297,15 +330,20 @@ class _SessionChatPaneState extends State<_SessionChatPane> {
         _thinking = false;
       });
       await SupabaseService.saveChatMessage(
-          sessionId: _sessionId, role: 'assistant', content: reply);
+        sessionId: _sessionId,
+        role: 'assistant',
+        content: reply,
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _messages.add(ChatMessage(
-          role: 'assistant',
-          content:
-              "I'm having a little trouble connecting right now. Give me a second and try again 💙",
-        ));
+        _messages.add(
+          ChatMessage(
+            role: 'assistant',
+            content:
+                "I'm having a little trouble connecting right now. Give me a second and try again 💙",
+          ),
+        );
         _thinking = false;
       });
     }
@@ -330,7 +368,8 @@ class _SessionChatPaneState extends State<_SessionChatPane> {
     final onSurface = th.colorScheme.onSurface;
     final card = th.cardColor;
 
-    if (_loading) return Center(child: CircularProgressIndicator(color: onSurface));
+    if (_loading)
+      return Center(child: CircularProgressIndicator(color: onSurface));
 
     return Column(
       children: [
@@ -343,10 +382,16 @@ class _SessionChatPaneState extends State<_SessionChatPane> {
                   itemCount: _messages.length + (_thinking ? 1 : 0),
                   itemBuilder: (context, i) {
                     if (_thinking && i == _messages.length) {
-                      return _TypingBubble(cardColor: card, onSurface: onSurface);
+                      return _TypingBubble(
+                        cardColor: card,
+                        onSurface: onSurface,
+                      );
                     }
                     return _MessageBubble(
-                        message: _messages[i], cardColor: card, onSurface: onSurface);
+                      message: _messages[i],
+                      cardColor: card,
+                      onSurface: onSurface,
+                    );
                   },
                 ),
         ),
@@ -362,20 +407,25 @@ class _SessionChatPaneState extends State<_SessionChatPane> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(
-              width: 80, height: 80,
-              child: Image.asset('assets/images/kloudy_mascot.png', fit: BoxFit.contain),
-            ),
+            const KloudyMark(size: 80),
             const SizedBox(height: 20),
-            Text("Hey, I'm Kloudy.",
-                style: TextStyle(
-                    fontSize: 20, fontWeight: FontWeight.w700, color: onSurface),
-                textAlign: TextAlign.center),
+            Text(
+              "Hey, I'm Kloudy.",
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: onSurface,
+              ),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 10),
             Text(
               "Ask me anything — food, sleep, money, how you're feeling. No judgment here.",
               style: TextStyle(
-                  fontSize: 14, color: onSurface.withValues(alpha: 0.5), height: 1.5),
+                fontSize: 14,
+                color: onSurface.withValues(alpha: 0.5),
+                height: 1.5,
+              ),
               textAlign: TextAlign.center,
             ),
           ],
@@ -390,46 +440,76 @@ class _SessionChatPaneState extends State<_SessionChatPane> {
       child: Container(
         color: card,
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: onSurface.withValues(alpha: 0.07),
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: TextField(
-                  controller: _ctrl,
-                  focusNode: _focus,
-                  maxLines: 4,
-                  minLines: 1,
-                  textCapitalization: TextCapitalization.sentences,
-                  style: TextStyle(fontSize: 14, color: onSurface),
-                  decoration: InputDecoration(
-                    hintText: 'Ask Kloudy anything...',
-                    hintStyle:
-                        TextStyle(color: onSurface.withValues(alpha: 0.38), fontSize: 14),
-                    border: InputBorder.none,
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: onSurface.withValues(alpha: 0.07),
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: TextField(
+                      controller: _ctrl,
+                      focusNode: _focus,
+                      maxLines: 4,
+                      minLines: 1,
+                      textCapitalization: TextCapitalization.sentences,
+                      style: TextStyle(fontSize: 14, color: onSurface),
+                      decoration: InputDecoration(
+                        hintText: 'Ask Kloudy anything...',
+                        hintStyle: TextStyle(
+                          color: onSurface.withValues(alpha: 0.38),
+                          fontSize: 14,
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 12,
+                        ),
+                      ),
+                      onSubmitted: (_) {
+                        if (_ctrl.text.trim().isNotEmpty && !_thinking) {
+                          _send(_ctrl.text);
+                        }
+                      },
+                    ),
                   ),
-                  onSubmitted: (_) {
-                    if (_ctrl.text.trim().isNotEmpty && !_thinking) _send(_ctrl.text);
-                  },
                 ),
-              ),
+                const SizedBox(width: 10),
+                GestureDetector(
+                  onTap: () {
+                    if (_ctrl.text.trim().isNotEmpty && !_thinking) {
+                      _send(_ctrl.text);
+                    }
+                  },
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.arrow_upward,
+                      color: Theme.of(context).colorScheme.onPrimary,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 10),
-            GestureDetector(
-              onTap: () {
-                if (_ctrl.text.trim().isNotEmpty && !_thinking) _send(_ctrl.text);
+            if (_messages.isEmpty && !_thinking) ...[const SizedBox(height: 8)],
+            CommonsSuggestions(
+              onSelect: (prompt) {
+                _ctrl
+                  ..text = prompt
+                  ..selection = TextSelection.collapsed(offset: prompt.length);
+                _focus.requestFocus();
               },
-              child: Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary, shape: BoxShape.circle),
-                child: Icon(Icons.arrow_upward, color: Theme.of(context).colorScheme.onPrimary, size: 20),
-              ),
             ),
           ],
         ),
@@ -445,8 +525,11 @@ class _MessageBubble extends StatelessWidget {
   final Color cardColor;
   final Color onSurface;
 
-  const _MessageBubble(
-      {required this.message, required this.cardColor, required this.onSurface});
+  const _MessageBubble({
+    required this.message,
+    required this.cardColor,
+    required this.onSurface,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -454,27 +537,22 @@ class _MessageBubble extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
-        mainAxisAlignment:
-            isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isUser
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isUser) ...[
-            Container(
-              width: 28, height: 28,
-              decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary, shape: BoxShape.circle),
-              clipBehavior: Clip.antiAlias,
-              child: Image.asset('assets/images/kloudy_logo.png',
-                  fit: BoxFit.cover),
-            ),
+            const KloudyMark(size: 28),
             const SizedBox(width: 8),
           ],
           Flexible(
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: isUser ? Theme.of(context).colorScheme.primary : cardColor,
+                color: isUser
+                    ? Theme.of(context).colorScheme.primary
+                    : cardColor,
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(20),
                   topRight: const Radius.circular(20),
@@ -492,9 +570,12 @@ class _MessageBubble extends StatelessWidget {
               child: Text(
                 message.content,
                 style: TextStyle(
-                    fontSize: 14,
-                    height: 1.5,
-                    color: isUser ? Theme.of(context).colorScheme.onPrimary : onSurface),
+                  fontSize: 14,
+                  height: 1.5,
+                  color: isUser
+                      ? Theme.of(context).colorScheme.onPrimary
+                      : onSurface,
+                ),
               ),
             ),
           ),
@@ -524,8 +605,9 @@ class _TypingBubbleState extends State<_TypingBubble>
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 900))
-      ..repeat();
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat();
   }
 
   @override
@@ -552,18 +634,10 @@ class _TypingBubbleState extends State<_TypingBubble>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Container(
-            width: 28, height: 28,
-            decoration:
-                BoxDecoration(color: Theme.of(context).colorScheme.primary, shape: BoxShape.circle),
-            clipBehavior: Clip.antiAlias,
-            child:
-                Image.asset('assets/images/kloudy_logo.png', fit: BoxFit.cover),
-          ),
+          const KloudyMark(size: 28),
           const SizedBox(width: 8),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             decoration: BoxDecoration(
               color: widget.cardColor,
               borderRadius: const BorderRadius.only(
@@ -581,7 +655,8 @@ class _TypingBubbleState extends State<_TypingBubble>
                   final opacity = _sineWave(_ctrl.value, i / 3).clamp(0.0, 1.0);
                   return Container(
                     margin: EdgeInsets.only(right: i < 2 ? 5 : 0),
-                    width: 7, height: 7,
+                    width: 7,
+                    height: 7,
                     decoration: BoxDecoration(
                       color: widget.onSurface.withValues(alpha: opacity),
                       shape: BoxShape.circle,

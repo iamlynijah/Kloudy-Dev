@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
-import 'home_screen.dart';
-import 'health_screen.dart';
-import 'weight_screen.dart';
-import 'finances_screen.dart';
-import 'mental_wellness_screen.dart';
-import 'kloudy_conversations_screen.dart';
 import '../services/supabase_service.dart';
+import '../theme/kloudy_theme.dart';
 import '../widgets/tutorial_overlay.dart';
+import 'finances_screen.dart';
+import 'health_screen.dart';
+import 'kloudy_conversations_screen.dart';
+import 'life_spaces_screen.dart';
+import 'mental_wellness_screen.dart';
+import 'weight_screen.dart';
+import 'home_screen.dart';
+import '../demo/demo_profile.dart';
 
 class MainNavScreen extends StatefulWidget {
   final String userName;
 
-  const MainNavScreen({
-    super.key,
-    required this.userName,
-  });
+  const MainNavScreen({super.key, required this.userName});
 
   @override
   State<MainNavScreen> createState() => _MainNavScreenState();
@@ -23,47 +23,43 @@ class MainNavScreen extends StatefulWidget {
 class _MainNavScreenState extends State<MainNavScreen> {
   int _currentIndex = 0;
   bool _showTutorial = false;
-
-  late final ValueNotifier<bool> _homeActive;
-  late final ValueNotifier<bool> _mindsetActive;
   late final List<Widget> _screens;
 
   @override
   void initState() {
     super.initState();
-    _homeActive = ValueNotifier<bool>(true);
-    _mindsetActive = ValueNotifier<bool>(false);
     _screens = [
-      HomeScreen(
-        userName: widget.userName,
-        onNavigate: _navigateTo,
-        activeNotifier: _homeActive,
-      ),
-      const HealthScreen(),
-      const WeightScreen(),
-      const FinancesScreen(),
-      MentalWellnessScreen(activeNotifier: _mindsetActive),
+      HomeScreen(userName: widget.userName, onNavigate: _handleHomeAction),
+      MyLifeScreen(onOpenSection: _openLifeSection),
       const KloudyConversationsScreen(),
     ];
     _checkTutorial();
   }
 
   Future<void> _checkTutorial() async {
+    if (DemoProfile.isDemo) return;
     final shown = await SupabaseService.fetchTutorialShown();
     if (!shown && mounted) setState(() => _showTutorial = true);
   }
 
-  @override
-  void dispose() {
-    _homeActive.dispose();
-    _mindsetActive.dispose();
-    super.dispose();
+  void _selectTab(int index) => setState(() => _currentIndex = index);
+
+  void _handleHomeAction(int target) {
+    if (target == 5 || target == 6) {
+      _selectTab(2);
+    } else if (target >= 1 && target <= 4) {
+      _openLifeSection(target - 1);
+    }
   }
 
-  void _navigateTo(int index) {
-    _homeActive.value = index == 0;
-    _mindsetActive.value = index == 4;
-    setState(() => _currentIndex = index);
+  void _openLifeSection(int section) {
+    final Widget page = switch (section) {
+      0 => const HealthScreen(),
+      1 => const WeightScreen(),
+      2 => const FinancesScreen(),
+      _ => const MentalWellnessScreen(),
+    };
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
   }
 
   @override
@@ -71,57 +67,36 @@ class _MainNavScreenState extends State<MainNavScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          IndexedStack(
-            index: _currentIndex,
-            children: _screens,
-          ),
+          IndexedStack(index: _currentIndex, children: _screens),
           if (_showTutorial)
             TutorialOverlay(
               onComplete: () => setState(() => _showTutorial = false),
             ),
         ],
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          _homeActive.value = index == 0;
-          _mindsetActive.value = index == 4;
-          setState(() => _currentIndex = index);
-        },
-        type: BottomNavigationBarType.fixed,
-        showUnselectedLabels: true,
-        selectedFontSize: 12,
-        unselectedFontSize: 12,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            activeIcon: Icon(Icons.home),
-            label: 'Home',
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        onDestinationSelected: _selectTab,
+        backgroundColor: kCard,
+        indicatorColor: kKloudyBlue.withValues(alpha: 0.12),
+        elevation: 0,
+        height: 70,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.grid_view_rounded),
+            selectedIcon: Icon(Icons.grid_view_rounded),
+            label: 'Today',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.favorite_outline),
-            activeIcon: Icon(Icons.favorite),
-            label: 'Health',
+          NavigationDestination(
+            icon: Icon(Icons.layers_outlined),
+            selectedIcon: Icon(Icons.layers_rounded),
+            label: 'My life',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.restaurant_menu_outlined),
-            activeIcon: Icon(Icons.restaurant_menu),
-            label: 'Nutrition',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.attach_money_outlined),
-            activeIcon: Icon(Icons.attach_money),
-            label: 'Finances',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.self_improvement_outlined),
-            activeIcon: Icon(Icons.self_improvement),
-            label: 'Mindset',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.chat_bubble_outline),
-            activeIcon: Icon(Icons.chat_bubble),
-            label: 'Chat',
+          NavigationDestination(
+            icon: Icon(Icons.auto_awesome_outlined),
+            selectedIcon: Icon(Icons.auto_awesome_rounded),
+            label: 'Kloudy',
           ),
         ],
       ),

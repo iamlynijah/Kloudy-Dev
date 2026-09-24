@@ -19,6 +19,9 @@ class Streak {
   /// (e.g. gym 4x/week). Ignored for daily streaks.
   int weeklyTarget;
 
+  /// Weekday numbers (1=Monday … 7=Sunday) the user expects this habit.
+  List<int> scheduledDays;
+
   /// Current consecutive streak count (days or weeks, depending on cadence).
   int currentStreak;
 
@@ -49,20 +52,25 @@ class Streak {
     required this.icon,
     required this.cadence,
     this.weeklyTarget = 3,
+    List<int>? scheduledDays,
     this.currentStreak = 0,
     this.bestStreak = 0,
     List<DateTime>? checkIns,
     this.sharedWithFriends = false,
     this.autoEvaluated = false,
-  }) : checkIns = checkIns ?? [];
+  }) : checkIns = checkIns ?? [],
+       scheduledDays = scheduledDays ?? [1, 3, 5];
 
   bool get isDaily => cadence == StreakCadence.daily;
 
   /// How many check-ins fall within the current calendar week (Mon–Sun).
   int get checkInsThisWeek {
     final now = DateTime.now();
-    final startOfWeek = DateTime(now.year, now.month, now.day)
-        .subtract(Duration(days: now.weekday - 1));
+    final startOfWeek = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).subtract(Duration(days: now.weekday - 1));
     return checkIns.where((d) => !d.isBefore(startOfWeek)).length;
   }
 
@@ -71,49 +79,62 @@ class Streak {
   bool get loggedForCurrentPeriod {
     final now = DateTime.now();
     if (isDaily) {
-      return checkIns.any((d) =>
-          d.year == now.year && d.month == now.month && d.day == now.day);
+      return checkIns.any(
+        (d) => d.year == now.year && d.month == now.month && d.day == now.day,
+      );
     }
     return checkInsThisWeek >= weeklyTarget;
   }
 
+  bool get loggedToday {
+    final now = DateTime.now();
+    return checkIns.any(
+      (d) => d.year == now.year && d.month == now.month && d.day == now.day,
+    );
+  }
+
+  bool get scheduledToday =>
+      isDaily || scheduledDays.contains(DateTime.now().weekday);
+
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'icon_code_point': icon.codePoint,
-        'cadence': cadence.name,
-        'weekly_target': weeklyTarget,
-        'current_streak': currentStreak,
-        'best_streak': bestStreak,
-        'check_ins': checkIns.map((d) => d.toIso8601String()).toList(),
-        'shared_with_friends': sharedWithFriends,
-        'auto_evaluated': autoEvaluated,
-      };
+    'id': id,
+    'name': name,
+    'icon_code_point': icon.codePoint,
+    'cadence': cadence.name,
+    'weekly_target': weeklyTarget,
+    'scheduled_days': scheduledDays,
+    'current_streak': currentStreak,
+    'best_streak': bestStreak,
+    'check_ins': checkIns.map((d) => d.toIso8601String()).toList(),
+    'shared_with_friends': sharedWithFriends,
+    'auto_evaluated': autoEvaluated,
+  };
 
   factory Streak.fromJson(Map<String, dynamic> json) => Streak(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        // NOTE: reconstructing IconData from a raw code point like this
-        // works at runtime, but Flutter's icon tree-shaker (on by default
-        // in release builds) can't verify a non-const IconData like this
-        // is actually used, and may either strip needed icon data or
-        // require --no-tree-shake-icons. If release builds show blank/
-        // wrong icons here, build with `flutter build ... --no-tree-shake-icons`
-        // or switch to storing an icon *name* string and mapping it
-        // through a fixed const lookup table instead.
-        icon: IconData(json['icon_code_point'] as int,
-            fontFamily: 'MaterialIcons'),
-        cadence: StreakCadence.values
-            .firstWhere((c) => c.name == json['cadence']),
-        weeklyTarget: json['weekly_target'] as int? ?? 3,
-        currentStreak: json['current_streak'] as int? ?? 0,
-        bestStreak: json['best_streak'] as int? ?? 0,
-        checkIns: (json['check_ins'] as List<dynamic>? ?? [])
-            .map((s) => DateTime.parse(s as String))
-            .toList(),
-        sharedWithFriends: json['shared_with_friends'] as bool? ?? false,
-        autoEvaluated: json['auto_evaluated'] as bool? ?? false,
-      );
+    id: json['id'] as String,
+    name: json['name'] as String,
+    // NOTE: reconstructing IconData from a raw code point like this
+    // works at runtime, but Flutter's icon tree-shaker (on by default
+    // in release builds) can't verify a non-const IconData like this
+    // is actually used, and may either strip needed icon data or
+    // require --no-tree-shake-icons. If release builds show blank/
+    // wrong icons here, build with `flutter build ... --no-tree-shake-icons`
+    // or switch to storing an icon *name* string and mapping it
+    // through a fixed const lookup table instead.
+    icon: IconData(json['icon_code_point'] as int, fontFamily: 'MaterialIcons'),
+    cadence: StreakCadence.values.firstWhere((c) => c.name == json['cadence']),
+    weeklyTarget: json['weekly_target'] as int? ?? 3,
+    scheduledDays: (json['scheduled_days'] as List<dynamic>? ?? [1, 3, 5])
+        .map((day) => (day as num).toInt())
+        .toList(),
+    currentStreak: json['current_streak'] as int? ?? 0,
+    bestStreak: json['best_streak'] as int? ?? 0,
+    checkIns: (json['check_ins'] as List<dynamic>? ?? [])
+        .map((s) => DateTime.parse(s as String))
+        .toList(),
+    sharedWithFriends: json['shared_with_friends'] as bool? ?? false,
+    autoEvaluated: json['auto_evaluated'] as bool? ?? false,
+  );
 }
 
 /// A short, easy-to-read-aloud code a friend can enter to connect.

@@ -4,11 +4,11 @@ enum NutritionGoalType { loseFat, buildMuscle, recomposition, maintain }
 
 extension NutritionGoalTypeX on NutritionGoalType {
   String get label => switch (this) {
-        NutritionGoalType.loseFat => 'Lose fat',
-        NutritionGoalType.buildMuscle => 'Build muscle',
-        NutritionGoalType.recomposition => 'Recomposition',
-        NutritionGoalType.maintain => 'Maintain',
-      };
+    NutritionGoalType.loseFat => 'Lose fat',
+    NutritionGoalType.buildMuscle => 'Build muscle',
+    NutritionGoalType.recomposition => 'Recomposition',
+    NutritionGoalType.maintain => 'Maintain',
+  };
   bool get hasWeightGoal => this != NutritionGoalType.maintain;
 }
 
@@ -16,41 +16,50 @@ enum ActivityLevel { sedentary, light, moderate, active, veryActive }
 
 extension ActivityLevelX on ActivityLevel {
   String get label => switch (this) {
-        ActivityLevel.sedentary => 'Sedentary',
-        ActivityLevel.light => 'Lightly active',
-        ActivityLevel.moderate => 'Moderately active',
-        ActivityLevel.active => 'Very active',
-        ActivityLevel.veryActive => 'Athlete',
-      };
+    ActivityLevel.sedentary => 'Sedentary',
+    ActivityLevel.light => 'Lightly active',
+    ActivityLevel.moderate => 'Moderately active',
+    ActivityLevel.active => 'Very active',
+    ActivityLevel.veryActive => 'Athlete',
+  };
   String get description => switch (this) {
-        ActivityLevel.sedentary => 'Desk job, little exercise',
-        ActivityLevel.light => '1-3 workouts/week',
-        ActivityLevel.moderate => '3-5 workouts/week',
-        ActivityLevel.active => '6-7 workouts/week',
-        ActivityLevel.veryActive => '2x/day or physical job',
-      };
+    ActivityLevel.sedentary => 'Desk job, little exercise',
+    ActivityLevel.light => '1-3 workouts/week',
+    ActivityLevel.moderate => '3-5 workouts/week',
+    ActivityLevel.active => '6-7 workouts/week',
+    ActivityLevel.veryActive => '2x/day or physical job',
+  };
   double get tdeeMultiplier => switch (this) {
-        ActivityLevel.sedentary => 1.2,
-        ActivityLevel.light => 1.375,
-        ActivityLevel.moderate => 1.55,
-        ActivityLevel.active => 1.725,
-        ActivityLevel.veryActive => 1.9,
-      };
+    ActivityLevel.sedentary => 1.2,
+    ActivityLevel.light => 1.375,
+    ActivityLevel.moderate => 1.55,
+    ActivityLevel.active => 1.725,
+    ActivityLevel.veryActive => 1.9,
+  };
 }
 
-enum GlpMed { none, ozempic, wegovy, mounjaro, tirzepatide, phentermine, metformin, other }
+enum GlpMed {
+  none,
+  ozempic,
+  wegovy,
+  mounjaro,
+  tirzepatide,
+  phentermine,
+  metformin,
+  other,
+}
 
 extension GlpMedX on GlpMed {
   String get label => switch (this) {
-        GlpMed.none => 'None',
-        GlpMed.ozempic => 'Ozempic',
-        GlpMed.wegovy => 'Wegovy',
-        GlpMed.mounjaro => 'Mounjaro',
-        GlpMed.tirzepatide => 'Tirzepatide',
-        GlpMed.phentermine => 'Phentermine',
-        GlpMed.metformin => 'Metformin',
-        GlpMed.other => 'Other',
-      };
+    GlpMed.none => 'None',
+    GlpMed.ozempic => 'Ozempic',
+    GlpMed.wegovy => 'Wegovy',
+    GlpMed.mounjaro => 'Mounjaro',
+    GlpMed.tirzepatide => 'Tirzepatide',
+    GlpMed.phentermine => 'Phentermine',
+    GlpMed.metformin => 'Metformin',
+    GlpMed.other => 'Other',
+  };
 }
 
 // ── Profile model ──────────────────────────────────────────────────────────
@@ -68,6 +77,8 @@ class NutritionProfile {
   final List<String> foodSensitivities;
   final int mealsPerDay;
   final int flexDaysPerWeek;
+  final String flexibilitySchedule;
+  final int flexibilityWeekday;
   final bool trackAlcohol;
   final List<String> medications;
   final bool medicationReminders;
@@ -95,6 +106,8 @@ class NutritionProfile {
     this.foodSensitivities = const [],
     this.mealsPerDay = 3,
     this.flexDaysPerWeek = 0,
+    this.flexibilitySchedule = 'none',
+    this.flexibilityWeekday = 7,
     this.trackAlcohol = false,
     this.medications = const [],
     this.medicationReminders = false,
@@ -110,67 +123,76 @@ class NutritionProfile {
   });
 
   Map<String, dynamic> toJson() => {
-        'goal_type': goalType.name,
-        'pace_lbs_per_week': paceLbsPerWeek,
-        'start_weight_lbs': startWeightLbs,
-        'goal_weight_lbs': goalWeightLbs,
-        'height_inches': heightInches,
-        'sex': sex,
-        'age': age,
-        'activity_level': activityLevel.name,
-        'diet_styles': dietStyles,
-        'food_sensitivities': foodSensitivities,
-        'meals_per_day': mealsPerDay,
-        'flex_days_per_week': flexDaysPerWeek,
-        'track_alcohol': trackAlcohol,
-        'medications': medications,
-        'medication_reminders': medicationReminders,
-        'reminder_frequency': reminderFrequency,
-        'reminder_times': reminderTimes,
-        'supplements': supplements,
-        'motivation': motivation,
-        'calorie_goal': calorieGoal,
-        'protein_goal': proteinGoal,
-        'carb_goal': carbGoal,
-        'fat_goal': fatGoal,
-        'water_cups_goal': waterCupsGoal,
-      };
+    'goal_type': goalType.name,
+    'pace_lbs_per_week': paceLbsPerWeek,
+    'start_weight_lbs': startWeightLbs,
+    'goal_weight_lbs': goalWeightLbs,
+    'height_inches': heightInches,
+    'sex': sex,
+    'age': age,
+    'activity_level': activityLevel.name,
+    'diet_styles': dietStyles,
+    'food_sensitivities': foodSensitivities,
+    'meals_per_day': mealsPerDay,
+    'flex_days_per_week': flexDaysPerWeek,
+    'flexibility_schedule': flexibilitySchedule,
+    'flexibility_weekday': flexibilityWeekday,
+    'track_alcohol': trackAlcohol,
+    'medications': medications,
+    'medication_reminders': medicationReminders,
+    'reminder_frequency': reminderFrequency,
+    'reminder_times': reminderTimes,
+    'supplements': supplements,
+    'motivation': motivation,
+    'calorie_goal': calorieGoal,
+    'protein_goal': proteinGoal,
+    'carb_goal': carbGoal,
+    'fat_goal': fatGoal,
+    'water_cups_goal': waterCupsGoal,
+  };
 
   factory NutritionProfile.fromJson(Map<String, dynamic> j) => NutritionProfile(
-        goalType: NutritionGoalType.values.firstWhere(
-            (e) => e.name == j['goal_type'],
-            orElse: () => NutritionGoalType.loseFat),
-        paceLbsPerWeek: (j['pace_lbs_per_week'] as num?)?.toDouble() ?? 1.0,
-        startWeightLbs: (j['start_weight_lbs'] as num).toDouble(),
-        goalWeightLbs: (j['goal_weight_lbs'] as num?)?.toDouble() ?? 0,
-        heightInches: (j['height_inches'] as num).toDouble(),
-        sex: j['sex'] as String? ?? 'other',
-        age: j['age'] as int? ?? 25,
-        activityLevel: ActivityLevel.values.firstWhere(
-            (e) => e.name == j['activity_level'],
-            orElse: () => ActivityLevel.moderate),
-        dietStyles: List<String>.from(j['diet_styles'] as List? ?? []),
-        foodSensitivities:
-            List<String>.from(j['food_sensitivities'] as List? ?? []),
-        mealsPerDay: j['meals_per_day'] as int? ?? 3,
-        flexDaysPerWeek: j['flex_days_per_week'] as int? ?? 0,
-        trackAlcohol: j['track_alcohol'] as bool? ?? false,
-        medications: j['medications'] != null
-            ? List<String>.from(j['medications'] as List)
-            : j['glp_med'] != null && j['glp_med'] != 'none'
-                ? [j['glp_med'] as String]
-                : [],
-        medicationReminders: j['medication_reminders'] as bool? ?? false,
-        reminderFrequency: j['reminder_frequency'] as String? ?? 'daily',
-        reminderTimes: List<String>.from(j['reminder_times'] as List? ?? ['08:00']),
-        supplements: List<String>.from(j['supplements'] as List? ?? []),
-        motivation: j['motivation'] as String? ?? 'all',
-        calorieGoal: j['calorie_goal'] as int? ?? 2000,
-        proteinGoal: j['protein_goal'] as int? ?? 150,
-        carbGoal: j['carb_goal'] as int? ?? 200,
-        fatGoal: j['fat_goal'] as int? ?? 65,
-        waterCupsGoal: j['water_cups_goal'] as int? ?? 8,
-      );
+    goalType: NutritionGoalType.values.firstWhere(
+      (e) => e.name == j['goal_type'],
+      orElse: () => NutritionGoalType.loseFat,
+    ),
+    paceLbsPerWeek: (j['pace_lbs_per_week'] as num?)?.toDouble() ?? 1.0,
+    startWeightLbs: (j['start_weight_lbs'] as num).toDouble(),
+    goalWeightLbs: (j['goal_weight_lbs'] as num?)?.toDouble() ?? 0,
+    heightInches: (j['height_inches'] as num).toDouble(),
+    sex: j['sex'] as String? ?? 'other',
+    age: j['age'] as int? ?? 25,
+    activityLevel: ActivityLevel.values.firstWhere(
+      (e) => e.name == j['activity_level'],
+      orElse: () => ActivityLevel.moderate,
+    ),
+    dietStyles: List<String>.from(j['diet_styles'] as List? ?? []),
+    foodSensitivities: List<String>.from(
+      j['food_sensitivities'] as List? ?? [],
+    ),
+    mealsPerDay: j['meals_per_day'] as int? ?? 3,
+    flexDaysPerWeek: j['flex_days_per_week'] as int? ?? 0,
+    flexibilitySchedule:
+        j['flexibility_schedule'] as String? ??
+        ((j['flex_days_per_week'] as int? ?? 0) > 0 ? 'weekly' : 'none'),
+    flexibilityWeekday: j['flexibility_weekday'] as int? ?? 7,
+    trackAlcohol: j['track_alcohol'] as bool? ?? false,
+    medications: j['medications'] != null
+        ? List<String>.from(j['medications'] as List)
+        : j['glp_med'] != null && j['glp_med'] != 'none'
+        ? [j['glp_med'] as String]
+        : [],
+    medicationReminders: j['medication_reminders'] as bool? ?? false,
+    reminderFrequency: j['reminder_frequency'] as String? ?? 'daily',
+    reminderTimes: List<String>.from(j['reminder_times'] as List? ?? ['08:00']),
+    supplements: List<String>.from(j['supplements'] as List? ?? []),
+    motivation: j['motivation'] as String? ?? 'all',
+    calorieGoal: j['calorie_goal'] as int? ?? 2000,
+    proteinGoal: j['protein_goal'] as int? ?? 150,
+    carbGoal: j['carb_goal'] as int? ?? 200,
+    fatGoal: j['fat_goal'] as int? ?? 65,
+    waterCupsGoal: j['water_cups_goal'] as int? ?? 8,
+  );
 }
 
 // ── Log models ─────────────────────────────────────────────────────────────
@@ -195,24 +217,24 @@ class FoodEntry {
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'meal': meal,
-        'calories': calories,
-        'protein': protein,
-        'carbs': carbs,
-        'fat': fat,
-      };
+    'id': id,
+    'name': name,
+    'meal': meal,
+    'calories': calories,
+    'protein': protein,
+    'carbs': carbs,
+    'fat': fat,
+  };
 
   factory FoodEntry.fromJson(Map<String, dynamic> j) => FoodEntry(
-        id: j['id'] as String,
-        name: j['name'] as String,
-        meal: j['meal'] as String,
-        calories: j['calories'] as int,
-        protein: (j['protein'] as num?)?.toDouble() ?? 0,
-        carbs: (j['carbs'] as num?)?.toDouble() ?? 0,
-        fat: (j['fat'] as num?)?.toDouble() ?? 0,
-      );
+    id: j['id'] as String,
+    name: j['name'] as String,
+    meal: j['meal'] as String,
+    calories: j['calories'] as int,
+    protein: (j['protein'] as num?)?.toDouble() ?? 0,
+    carbs: (j['carbs'] as num?)?.toDouble() ?? 0,
+    fat: (j['fat'] as num?)?.toDouble() ?? 0,
+  );
 }
 
 class WeightEntry {
@@ -224,9 +246,9 @@ class WeightEntry {
   Map<String, dynamic> toJson() => {'date': date, 'weight_lbs': weightLbs};
 
   factory WeightEntry.fromJson(Map<String, dynamic> j) => WeightEntry(
-        date: j['date'] as String,
-        weightLbs: (j['weight_lbs'] as num).toDouble(),
-      );
+    date: j['date'] as String,
+    weightLbs: (j['weight_lbs'] as num).toDouble(),
+  );
 }
 
 // ── TDEE + macro calculation ───────────────────────────────────────────────
@@ -279,8 +301,10 @@ int calculateCalorieGoal({
     protein = (weightLbs * 0.75).round();
   }
   final fat = (calories * 0.28 / 9).round();
-  final carbs =
-      ((calories - (protein * 4) - (fat * 9)) / 4).round().clamp(50, 9999);
+  final carbs = ((calories - (protein * 4) - (fat * 9)) / 4).round().clamp(
+    50,
+    9999,
+  );
   return (protein: protein, carbs: carbs, fat: fat);
 }
 
@@ -293,7 +317,13 @@ class QuickAddPreset {
   final double carbs;
   final double fat;
 
-  const QuickAddPreset(this.name, this.calories, this.protein, this.carbs, this.fat);
+  const QuickAddPreset(
+    this.name,
+    this.calories,
+    this.protein,
+    this.carbs,
+    this.fat,
+  );
 }
 
 const Map<String, List<QuickAddPreset>> quickAddPresets = {

@@ -4,8 +4,10 @@ import '../models/finance_goal.dart';
 import '../models/transaction.dart';
 import '../services/supabase_service.dart';
 import '../services/plaid_service.dart';
+import '../demo/demo_profile.dart';
 import 'finance_onboarding_screen.dart';
 import 'finance_unlock_screen.dart';
+import 'finance_learning_screen.dart';
 import 'tab_gate_screen.dart';
 
 class FinancesScreen extends StatefulWidget {
@@ -35,8 +37,7 @@ class _FinancesScreenState extends State<FinancesScreen> {
 
   // ── Computed ──────────────────────────────────────────────────────
 
-  double get _totalBills =>
-      _bills.fold(0.0, (s, b) => s + b.monthlyAmount);
+  double get _totalBills => _bills.fold(0.0, (s, b) => s + b.monthlyAmount);
 
   double get _totalExtras =>
       _extras.fold(0.0, (s, e) => s + e.estimatedMonthlyAmount);
@@ -75,6 +76,14 @@ class _FinancesScreenState extends State<FinancesScreen> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
+    if (DemoProfile.isDemo) {
+      setState(() {
+        _isUnlocked = true;
+        _onboardingDone = true;
+        _loading = false;
+      });
+      return;
+    }
     try {
       final results = await Future.wait([
         SupabaseService.fetchFinanceData(),
@@ -85,7 +94,8 @@ class _FinancesScreenState extends State<FinancesScreen> {
       final data = results[0];
       final profile = results[1];
 
-      final hasFinanceGoals = profile?['save_money'] == true ||
+      final hasFinanceGoals =
+          profile?['save_money'] == true ||
           profile?['pay_off_debt'] == true ||
           profile?['spend_more_intentionally'] == true ||
           profile?['increase_income'] == true;
@@ -105,8 +115,7 @@ class _FinancesScreenState extends State<FinancesScreen> {
           _loading = false;
           _onboardingDone = false;
         });
-        WidgetsBinding.instance
-            .addPostFrameCallback((_) => _openOnboarding());
+        WidgetsBinding.instance.addPostFrameCallback((_) => _openOnboarding());
       } else {
         _populateFromData(data);
         setState(() {
@@ -145,20 +154,19 @@ class _FinancesScreenState extends State<FinancesScreen> {
         .map((e) => AnchorBill.fromJson(Map<String, dynamic>.from(e as Map)))
         .toList();
     _extras = (data['extras'] as List<dynamic>? ?? [])
-        .map((e) =>
-            RecurringExtra.fromJson(Map<String, dynamic>.from(e as Map)))
+        .map(
+          (e) => RecurringExtra.fromJson(Map<String, dynamic>.from(e as Map)),
+        )
         .toList();
     _goals = (data['goals'] as List<dynamic>? ?? [])
-        .map((e) =>
-            FinanceGoal.fromJson(Map<String, dynamic>.from(e as Map)))
+        .map((e) => FinanceGoal.fromJson(Map<String, dynamic>.from(e as Map)))
         .toList();
   }
 
   Future<void> _openOnboarding() async {
     final result = await Navigator.push<Map<String, dynamic>>(
       context,
-      MaterialPageRoute(
-          builder: (_) => const FinanceOnboardingScreen()),
+      MaterialPageRoute(builder: (_) => const FinanceOnboardingScreen()),
     );
     if (result == null) return;
 
@@ -194,19 +202,23 @@ class _FinancesScreenState extends State<FinancesScreen> {
       isScrollControlled: true,
       backgroundColor: Theme.of(context).cardColor,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(
-          left: 24, right: 24, top: 24,
+          left: 24,
+          right: 24,
+          top: 24,
           bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Add to ${goal.name}',
-                style: const TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.w700)),
+            Text(
+              'Add to ${goal.name}',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            ),
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -216,9 +228,10 @@ class _FinancesScreenState extends State<FinancesScreen> {
               ),
               child: Row(
                 children: [
-                  const Text('\$',
-                      style: TextStyle(
-                          fontSize: 20, fontWeight: FontWeight.w600)),
+                  const Text(
+                    '\$',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+                  ),
                   const SizedBox(width: 6),
                   Expanded(
                     child: TextField(
@@ -244,15 +257,17 @@ class _FinancesScreenState extends State<FinancesScreen> {
                   backgroundColor: Theme.of(context).colorScheme.primary,
                   foregroundColor: Theme.of(context).colorScheme.onPrimary,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
                 onPressed: () {
                   final v = double.tryParse(ctrl.text);
                   Navigator.pop(ctx, v);
                 },
-                child: const Text('Add',
-                    style: TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w600)),
+                child: const Text(
+                  'Add',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
               ),
             ),
           ],
@@ -263,8 +278,10 @@ class _FinancesScreenState extends State<FinancesScreen> {
     if (confirmed == null || confirmed <= 0) return;
 
     setState(() {
-      goal.currentAmount =
-          (goal.currentAmount + confirmed).clamp(0, goal.targetAmount);
+      goal.currentAmount = (goal.currentAmount + confirmed).clamp(
+        0,
+        goal.targetAmount,
+      );
     });
 
     // Persist updated goals
@@ -279,8 +296,10 @@ class _FinancesScreenState extends State<FinancesScreen> {
 
   Future<void> _logContribution(FinanceGoal goal, double amount) async {
     setState(() {
-      goal.currentAmount =
-          (goal.currentAmount + amount).clamp(0, goal.targetAmount);
+      goal.currentAmount = (goal.currentAmount + amount).clamp(
+        0,
+        goal.targetAmount,
+      );
     });
     final payload = {
       'monthly_income': _monthlyIncome,
@@ -292,8 +311,9 @@ class _FinancesScreenState extends State<FinancesScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content:
-              Text('\$${amount.toStringAsFixed(0)} logged to ${goal.name}!'),
+          content: Text(
+            '\$${amount.toStringAsFixed(0)} logged to ${goal.name}!',
+          ),
         ),
       );
     }
@@ -335,15 +355,16 @@ class _FinancesScreenState extends State<FinancesScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
     if (mounted) setState(() => _plaidLoading = false);
   }
 
-  double get _totalSpent =>
-      _transactions.where((t) => !t.isTransfer).fold(0.0, (s, t) => s + t.amount);
+  double get _totalSpent => _transactions
+      .where((t) => !t.isTransfer)
+      .fold(0.0, (s, t) => s + t.amount);
 
   // Returns the first undismissed transfer that matches a goal, or null.
   ({Transaction txn, FinanceGoal goal})? get _activeNudge {
@@ -358,7 +379,8 @@ class _FinancesScreenState extends State<FinancesScreen> {
       if (_dismissedNudges.contains(txn.id)) continue;
       if (txn.transferType == 'transfer') {
         final savingsGoals = _goals.where((g) => !g.isDebt).toList();
-        if (savingsGoals.isNotEmpty) return (txn: txn, goal: savingsGoals.first);
+        if (savingsGoals.isNotEmpty)
+          return (txn: txn, goal: savingsGoals.first);
       }
     }
     return null;
@@ -371,7 +393,11 @@ class _FinancesScreenState extends State<FinancesScreen> {
     if (_loading) {
       return Scaffold(
         backgroundColor: null,
-        body: Center(child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary)),
+        body: Center(
+          child: CircularProgressIndicator(
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ),
       );
     }
 
@@ -392,6 +418,12 @@ class _FinancesScreenState extends State<FinancesScreen> {
     if (!_onboardingDone) {
       return Scaffold(
         backgroundColor: null, // inherits from theme
+        appBar: AppBar(
+          leading: Navigator.of(context).canPop() ? const BackButton() : null,
+          title: const Text('Finances'),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+        ),
         body: SafeArea(
           child: Center(
             child: Padding(
@@ -399,18 +431,22 @@ class _FinancesScreenState extends State<FinancesScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('💰',
-                      style: TextStyle(fontSize: 48)),
+                  const Text('💰', style: TextStyle(fontSize: 48)),
                   const SizedBox(height: 16),
-                  const Text('Set up your finances',
-                      style: TextStyle(
-                          fontSize: 22, fontWeight: FontWeight.bold)),
+                  const Text(
+                    'Set up your finances',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     "We'll build your budget and track your goals.",
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                        fontSize: 15, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.54)),
+                      fontSize: 15,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.54),
+                    ),
                   ),
                   const SizedBox(height: 24),
                   SizedBox(
@@ -420,14 +456,20 @@ class _FinancesScreenState extends State<FinancesScreen> {
                       onPressed: _openOnboarding,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Theme.of(context).colorScheme.primary,
-                        foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                        foregroundColor: Theme.of(
+                          context,
+                        ).colorScheme.onPrimary,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(28)),
+                          borderRadius: BorderRadius.circular(28),
+                        ),
                       ),
-                      child: const Text("Let's do it",
-                          style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600)),
+                      child: const Text(
+                        "Let's do it",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -440,11 +482,30 @@ class _FinancesScreenState extends State<FinancesScreen> {
 
     return Scaffold(
       backgroundColor: null, // inherits from theme
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Theme.of(context).colorScheme.onPrimary,
-        onPressed: _openOnboarding,
-        child: const Icon(Icons.edit_outlined),
+      appBar: AppBar(
+        leading: Navigator.of(context).canPop() ? const BackButton() : null,
+        title: const Text('Finances'),
+        actions: [
+          IconButton(
+            tooltip: 'Edit budget',
+            onPressed: _openOnboarding,
+            icon: const Icon(Icons.edit_outlined),
+          ),
+        ],
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(18, 8, 18, 12),
+        child: FilledButton.icon(
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const FinanceLearningScreen()),
+          ),
+          icon: const Icon(Icons.school_rounded),
+          label: const Text('Money moves · learn & earn points'),
+          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54)),
+        ),
       ),
       body: SafeArea(
         child: RefreshIndicator(
@@ -456,11 +517,11 @@ class _FinancesScreenState extends State<FinancesScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-
                 // ── Title ──
-                const Text('Finances',
-                    style: TextStyle(
-                        fontSize: 28, fontWeight: FontWeight.bold)),
+                const Text(
+                  'Finances',
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                ),
 
                 const SizedBox(height: 16),
 
@@ -483,17 +544,20 @@ class _FinancesScreenState extends State<FinancesScreen> {
 
                 // ── Goal buckets ──
                 if (_goals.isNotEmpty) ...[
-                  const Text('Your buckets',
-                      style: TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w600)),
+                  const Text(
+                    'Your buckets',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
                   const SizedBox(height: 12),
-                  ..._goals.map((g) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _GoalBucketCard(
-                          goal: g,
-                          onAddContribution: () => _addContribution(g),
-                        ),
-                      )),
+                  ..._goals.map(
+                    (g) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _GoalBucketCard(
+                        goal: g,
+                        onAddContribution: () => _addContribution(g),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 8),
                 ],
 
@@ -501,15 +565,22 @@ class _FinancesScreenState extends State<FinancesScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Spending this month',
-                        style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w600)),
+                    const Text(
+                      'Spending this month',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     if (_plaidConnected)
                       Text(
                         _institutionName ?? 'Connected',
                         style: TextStyle(
-                            fontSize: 12,
-                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4)),
+                          fontSize: 12,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withOpacity(0.4),
+                        ),
                       ),
                   ],
                 ),
@@ -533,13 +604,17 @@ class _FinancesScreenState extends State<FinancesScreen> {
                           _AccountChip(
                             label: 'All',
                             selected: _selectedAccountId == null,
-                            onTap: () => setState(() => _selectedAccountId = null),
+                            onTap: () =>
+                                setState(() => _selectedAccountId = null),
                           ),
-                          ..._accounts.map((a) => _AccountChip(
-                                label: a.displayName,
-                                selected: _selectedAccountId == a.id,
-                                onTap: () => setState(() => _selectedAccountId = a.id),
-                              )),
+                          ..._accounts.map(
+                            (a) => _AccountChip(
+                              label: a.displayName,
+                              selected: _selectedAccountId == a.id,
+                              onTap: () =>
+                                  setState(() => _selectedAccountId = a.id),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -547,33 +622,37 @@ class _FinancesScreenState extends State<FinancesScreen> {
                   ],
 
                   // Category breakdown (transfers excluded)
-                  Builder(builder: (context) {
-                    final spendTxns = _filteredTransactions
-                        .where((t) => !t.isTransfer)
-                        .toList();
-                    if (spendTxns.isEmpty) return const SizedBox.shrink();
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _CategoryBreakdown(
-                          totals: Map.fromEntries(
-                            spendTxns
-                                .fold(<String, double>{}, (map, t) {
-                                  map[t.category] =
-                                      (map[t.category] ?? 0) + t.amount;
-                                  return map;
-                                })
-                                .entries
-                                .toList()
-                              ..sort((a, b) => b.value.compareTo(a.value)),
+                  Builder(
+                    builder: (context) {
+                      final spendTxns = _filteredTransactions
+                          .where((t) => !t.isTransfer)
+                          .toList();
+                      if (spendTxns.isEmpty) return const SizedBox.shrink();
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _CategoryBreakdown(
+                            totals: Map.fromEntries(
+                              spendTxns
+                                  .fold(<String, double>{}, (map, t) {
+                                    map[t.category] =
+                                        (map[t.category] ?? 0) + t.amount;
+                                    return map;
+                                  })
+                                  .entries
+                                  .toList()
+                                ..sort((a, b) => b.value.compareTo(a.value)),
+                            ),
+                            totalSpent: spendTxns.fold(
+                              0.0,
+                              (s, t) => s + t.amount,
+                            ),
                           ),
-                          totalSpent:
-                              spendTxns.fold(0.0, (s, t) => s + t.amount),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-                    );
-                  }),
+                          const SizedBox(height: 16),
+                        ],
+                      );
+                    },
+                  ),
 
                   // Transfer nudge card
                   if (_activeNudge != null) ...[
@@ -582,12 +661,12 @@ class _FinancesScreenState extends State<FinancesScreen> {
                       goal: _activeNudge!.goal,
                       onLog: () {
                         final nudge = _activeNudge!;
-                        setState(() =>
-                            _dismissedNudges.add(nudge.txn.id));
+                        setState(() => _dismissedNudges.add(nudge.txn.id));
                         _logContribution(nudge.goal, nudge.txn.amount);
                       },
                       onDismiss: () => setState(
-                          () => _dismissedNudges.add(_activeNudge!.txn.id)),
+                        () => _dismissedNudges.add(_activeNudge!.txn.id),
+                      ),
                     ),
                     const SizedBox(height: 12),
                   ],
@@ -597,29 +676,33 @@ class _FinancesScreenState extends State<FinancesScreen> {
                     Text(
                       'All transactions',
                       style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withOpacity(0.6)),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withOpacity(0.6),
+                      ),
                     ),
                     const SizedBox(height: 8),
                   ],
-                  ..._filteredTransactions.map((t) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: _TransactionRow(transaction: t),
-                      )),
+                  ..._filteredTransactions.map(
+                    (t) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _TransactionRow(transaction: t),
+                    ),
+                  ),
                   if (_filteredTransactions.isEmpty)
                     Center(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 24),
-                        child: Text('No transactions this month',
-                            style: TextStyle(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurface
-                                    .withOpacity(0.4))),
+                        child: Text(
+                          'No transactions this month',
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withOpacity(0.4),
+                          ),
+                        ),
                       ),
                     ),
                 ],
@@ -737,15 +820,19 @@ class _SpendingSnapshotState extends State<_SpendingSnapshot> {
                       ? Icons.keyboard_arrow_up
                       : Icons.keyboard_arrow_down,
                   size: 16,
-                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.4),
                 ),
               ),
             ),
             if (_billsExpanded)
-              ...widget.bills.map((b) => _SubRow(
-                    label: b.name,
-                    value: '\$${b.monthlyAmount.toStringAsFixed(0)}',
-                  )),
+              ...widget.bills.map(
+                (b) => _SubRow(
+                  label: b.name,
+                  value: '\$${b.monthlyAmount.toStringAsFixed(0)}',
+                ),
+              ),
           ],
 
           // Extras — tappable, expands to list
@@ -760,15 +847,19 @@ class _SpendingSnapshotState extends State<_SpendingSnapshot> {
                       ? Icons.keyboard_arrow_up
                       : Icons.keyboard_arrow_down,
                   size: 16,
-                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.4),
                 ),
               ),
             ),
             if (_extrasExpanded)
-              ...widget.extras.map((e) => _SubRow(
-                    label: e.name,
-                    value: '\$${e.estimatedMonthlyAmount.toStringAsFixed(0)}',
-                  )),
+              ...widget.extras.map(
+                (e) => _SubRow(
+                  label: e.name,
+                  value: '\$${e.estimatedMonthlyAmount.toStringAsFixed(0)}',
+                ),
+              ),
           ],
 
           if (widget.totalGoals > 0)
@@ -827,25 +918,28 @@ class _SnapshotRow extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Text(label,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: bold ? FontWeight.w700 : FontWeight.normal,
-                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.87),
-                )),
-          ),
-          Text(value,
+            child: Text(
+              label,
               style: TextStyle(
                 fontSize: 14,
-                fontWeight: bold ? FontWeight.w700 : FontWeight.w600,
-                color: bold
-                    ? (positive ? const Color(0xFF2E7D32) : Colors.red)
-                    : Theme.of(context).colorScheme.onSurface.withOpacity(0.87),
-              )),
-          if (trailing != null) ...[
-            const SizedBox(width: 4),
-            trailing!,
-          ],
+                fontWeight: bold ? FontWeight.w700 : FontWeight.normal,
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withOpacity(0.87),
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: bold ? FontWeight.w700 : FontWeight.w600,
+              color: bold
+                  ? (positive ? const Color(0xFF2E7D32) : Colors.red)
+                  : Theme.of(context).colorScheme.onSurface.withOpacity(0.87),
+            ),
+          ),
+          if (trailing != null) ...[const SizedBox(width: 4), trailing!],
         ],
       ),
     );
@@ -874,15 +968,21 @@ class _SubRow extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: Text(label,
-                style: TextStyle(
-                    fontSize: 13,
-                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6))),
-          ),
-          Text(value,
+            child: Text(
+              label,
               style: TextStyle(
-                  fontSize: 13,
-                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6))),
+                fontSize: 13,
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 13,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+            ),
+          ),
         ],
       ),
     );
@@ -897,21 +997,25 @@ class _GoalBucketCard extends StatelessWidget {
   final FinanceGoal goal;
   final VoidCallback onAddContribution;
 
-  const _GoalBucketCard({
-    required this.goal,
-    required this.onAddContribution,
-  });
+  const _GoalBucketCard({required this.goal, required this.onAddContribution});
 
   String get _emoji {
     if (goal.isDebt) return '💳';
     switch (goal.name.toLowerCase()) {
-      case 'vacation': return '✈️';
-      case 'emergency fund': return '🛡️';
-      case 'new car': return '🚗';
-      case 'down payment': return '🏠';
-      case 'wedding': return '💍';
-      case 'education': return '🎓';
-      default: return '🎯';
+      case 'vacation':
+        return '✈️';
+      case 'emergency fund':
+        return '🛡️';
+      case 'new car':
+        return '🚗';
+      case 'down payment':
+        return '🏠';
+      case 'wedding':
+        return '💍';
+      case 'education':
+        return '🎓';
+      default:
+        return '🎯';
     }
   }
 
@@ -923,7 +1027,8 @@ class _GoalBucketCard extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Theme.of(context).cardColor,
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
@@ -934,32 +1039,44 @@ class _GoalBucketCard extends StatelessWidget {
               Text(_emoji, style: const TextStyle(fontSize: 20)),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(goal.name,
-                    style: const TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.w700)),
+                child: Text(
+                  goal.name,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
               if (!isComplete)
                 GestureDetector(
                   onTap: onAddContribution,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF5F5F5),
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: const Text('+ Add',
-                        style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600)),
+                    child: const Text(
+                      '+ Add',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 )
               else
-                const Text('✅ Done',
-                    style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF2E7D32))),
+                const Text(
+                  '✅ Done',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF2E7D32),
+                  ),
+                ),
             ],
           ),
 
@@ -973,9 +1090,7 @@ class _GoalBucketCard extends StatelessWidget {
               minHeight: 8,
               backgroundColor: const Color(0xFFF0F0F0),
               valueColor: AlwaysStoppedAnimation<Color>(
-                goal.isDebt
-                    ? const Color(0xFFE53935)
-                    : const Color(0xFF2E7D32),
+                goal.isDebt ? const Color(0xFFE53935) : const Color(0xFF2E7D32),
               ),
             ),
           ),
@@ -990,13 +1105,21 @@ class _GoalBucketCard extends StatelessWidget {
                     ? '\$${goal.remaining.toStringAsFixed(0)} left'
                     : '\$${goal.currentAmount.toStringAsFixed(0)} of \$${goal.targetAmount.toStringAsFixed(0)}',
                 style: TextStyle(
-                    fontSize: 13, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.54)),
+                  fontSize: 13,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.54),
+                ),
               ),
               if (!isComplete)
                 Text(
                   '\$${monthly.toStringAsFixed(0)}/mo · ${goal.timelineLabel} to go',
                   style: TextStyle(
-                      fontSize: 13, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.45)),
+                    fontSize: 13,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withOpacity(0.45),
+                  ),
                 ),
             ],
           ),
@@ -1066,29 +1189,29 @@ class _CategoryBreakdown extends StatelessWidget {
   const _CategoryBreakdown({required this.totals, required this.totalSpent});
 
   static const _categoryIcons = <String, IconData>{
-    'Food & Drink':   Icons.restaurant_outlined,
-    'Shopping':       Icons.shopping_bag_outlined,
-    'Transport':      Icons.directions_car_outlined,
-    'Entertainment':  Icons.movie_outlined,
-    'Personal Care':  Icons.face_retouching_natural,
-    'Health':         Icons.favorite_outline,
-    'Travel':         Icons.flight_outlined,
-    'Home':           Icons.home_outlined,
-    'Utilities':      Icons.bolt_outlined,
-    'Other':          Icons.payments_outlined,
+    'Food & Drink': Icons.restaurant_outlined,
+    'Shopping': Icons.shopping_bag_outlined,
+    'Transport': Icons.directions_car_outlined,
+    'Entertainment': Icons.movie_outlined,
+    'Personal Care': Icons.face_retouching_natural,
+    'Health': Icons.favorite_outline,
+    'Travel': Icons.flight_outlined,
+    'Home': Icons.home_outlined,
+    'Utilities': Icons.bolt_outlined,
+    'Other': Icons.payments_outlined,
   };
 
   static const _categoryColors = <String, Color>{
-    'Food & Drink':   Color(0xFFEDD4B0),
-    'Shopping':       Color(0xFFD4D8F0),
-    'Transport':      Color(0xFFDCEED4),
-    'Entertainment':  Color(0xFFEDD8F0),
-    'Personal Care':  Color(0xFFF4D4E8),
-    'Health':         Color(0xFFE8C4C4),
-    'Travel':         Color(0xFFD4E8EE),
-    'Home':           Color(0xFFEAE4D4),
-    'Utilities':      Color(0xFFF0E8C8),
-    'Other':          Color(0xFFE4DDD4),
+    'Food & Drink': Color(0xFFEDD4B0),
+    'Shopping': Color(0xFFD4D8F0),
+    'Transport': Color(0xFFDCEED4),
+    'Entertainment': Color(0xFFEDD8F0),
+    'Personal Care': Color(0xFFF4D4E8),
+    'Health': Color(0xFFE8C4C4),
+    'Travel': Color(0xFFD4E8EE),
+    'Home': Color(0xFFEAE4D4),
+    'Utilities': Color(0xFFF0E8C8),
+    'Other': Color(0xFFE4DDD4),
   };
 
   @override
@@ -1105,14 +1228,17 @@ class _CategoryBreakdown extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('By category',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+              const Text(
+                'By category',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
               Text(
                 '\$${totalSpent.toStringAsFixed(0)} total',
                 style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).colorScheme.primary),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
               ),
             ],
           ),
@@ -1129,10 +1255,14 @@ class _CategoryBreakdown extends StatelessWidget {
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                        color: color,
-                        borderRadius: BorderRadius.circular(10)),
-                    child: Icon(icon, size: 15,
-                        color: Theme.of(context).colorScheme.onSurface),
+                      color: color,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      icon,
+                      size: 15,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -1142,12 +1272,20 @@ class _CategoryBreakdown extends StatelessWidget {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(e.key,
-                                style: const TextStyle(
-                                    fontSize: 13, fontWeight: FontWeight.w500)),
-                            Text('\$${e.value.toStringAsFixed(0)}',
-                                style: const TextStyle(
-                                    fontSize: 13, fontWeight: FontWeight.w600)),
+                            Text(
+                              e.key,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            Text(
+                              '\$${e.value.toStringAsFixed(0)}',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 4),
@@ -1156,12 +1294,10 @@ class _CategoryBreakdown extends StatelessWidget {
                           child: LinearProgressIndicator(
                             value: pct,
                             minHeight: 5,
-                            backgroundColor: Theme.of(context)
-                                .colorScheme
-                                .onSurface
-                                .withOpacity(0.08),
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(color),
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withOpacity(0.08),
+                            valueColor: AlwaysStoppedAnimation<Color>(color),
                           ),
                         ),
                       ],
@@ -1193,36 +1329,42 @@ class _ConnectBankCard extends StatelessWidget {
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: Theme.of(context).cardColor,
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
           children: [
             const Icon(Icons.account_balance_outlined, size: 28),
             const SizedBox(height: 10),
-            const Text('Connect your bank',
-                style: TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w600)),
+            const Text(
+              'Connect your bank',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: 4),
             Text(
               'See your spending automatically, no manual entry',
               textAlign: TextAlign.center,
               style: TextStyle(
-                  fontSize: 13, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
+                fontSize: 13,
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+              ),
             ),
             const SizedBox(height: 14),
             Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 20, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.primary,
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: Text('Connect bank',
-                  style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(context).colorScheme.onPrimary)),
+              child: Text(
+                'Connect bank',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.onPrimary,
+                ),
+              ),
             ),
           ],
         ),
@@ -1243,11 +1385,16 @@ class _TransactionRow extends StatelessWidget {
   IconData get _icon {
     if (transaction.isTransfer) return Icons.swap_horiz;
     switch (transaction.category) {
-      case 'Food & Drink': return Icons.restaurant_outlined;
-      case 'Groceries': return Icons.shopping_basket_outlined;
-      case 'Gas': return Icons.local_gas_station_outlined;
-      case 'Shopping': return Icons.shopping_bag_outlined;
-      default: return Icons.payments_outlined;
+      case 'Food & Drink':
+        return Icons.restaurant_outlined;
+      case 'Groceries':
+        return Icons.shopping_basket_outlined;
+      case 'Gas':
+        return Icons.local_gas_station_outlined;
+      case 'Shopping':
+        return Icons.shopping_bag_outlined;
+      default:
+        return Icons.payments_outlined;
     }
   }
 
@@ -1290,21 +1437,27 @@ class _TransactionRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(transaction.merchantName,
-                      style: const TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.w500)),
+                  Text(
+                    transaction.merchantName,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                   Text(
                     _subtitleLabel,
                     style: TextStyle(
-                        fontSize: 12,
-                        color: baseColor.withValues(alpha: 0.45)),
+                      fontSize: 12,
+                      color: baseColor.withValues(alpha: 0.45),
+                    ),
                   ),
                 ],
               ),
             ),
-            Text('\$${transaction.amount.toStringAsFixed(2)}',
-                style: const TextStyle(
-                    fontSize: 14, fontWeight: FontWeight.w600)),
+            Text(
+              '\$${transaction.amount.toStringAsFixed(2)}',
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            ),
           ],
         ),
       ),
@@ -1352,17 +1505,21 @@ class _TransferNudgeCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(desc,
-                    style: const TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w600)),
+                Text(
+                  desc,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 Text(
                   'Count toward ${goal.name}?',
                   style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.6)),
+                    fontSize: 12,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
                 ),
               ],
             ),
@@ -1371,26 +1528,27 @@ class _TransferNudgeCard extends StatelessWidget {
           GestureDetector(
             onTap: onLog,
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
                 color: const Color(0xFFFFCA28),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Text('Log it',
-                  style: TextStyle(
-                      fontSize: 12, fontWeight: FontWeight.w700)),
+              child: const Text(
+                'Log it',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+              ),
             ),
           ),
           const SizedBox(width: 6),
           GestureDetector(
             onTap: onDismiss,
-            child: Icon(Icons.close,
-                size: 16,
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurface
-                    .withValues(alpha: 0.3)),
+            child: Icon(
+              Icons.close,
+              size: 16,
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.3),
+            ),
           ),
         ],
       ),

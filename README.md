@@ -1,17 +1,27 @@
-# kloudy
+# Kloudy
 
-A new Flutter project.
+**The things nobody explained, made easier to understand.**
 
-## Getting Started
+Kloudy is a personal life companion for young adults learning to manage money, health, food, appointments, and routines. It brings practical tools and plain-language guidance together in one calm, welcoming place.
 
-This project is a starting point for a Flutter application.
+The idea comes from a first-generation college student who remembers having to learn these basics without a guide. Kloudy is built to make those questions feel normal to ask and manageable to act on.
 
-A few resources to get you started if this is your first Flutter project:
+## Product spaces
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+- **Today** — a personal overview, a small daily plan, and a quick check-in.
+- **My life** — entry points for health and care, food and nutrition, money, and mindset.
+- **The Commons** — approachable starting points for questions many young adults have, with a direct path to ask Kloudy for help.
+- **Kloudy** — a conversational guide that can use the user context already available to the app.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Built with
+
+- Flutter and Dart
+- Supabase for accounts and app data
+- Plaid for optional financial account connections
+- AI-powered guidance
+
+## Development status
+
+Kloudy is an active project. The Flutter client is in `lib/`; screens are in `lib/screens/`, service integrations in `lib/services/`, and the visual system in `lib/theme/`.
+
+The Commons currently provides curated question prompts rather than a public user-posted discussion feed. Existing health, nutrition, finance, and mindset tools remain separate feature areas as the product evolves.

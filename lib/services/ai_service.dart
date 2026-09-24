@@ -1,10 +1,28 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../models/chat_message.dart';
+import 'supabase_service.dart';
 
 class AiService {
-  static const _url = 'https://api.anthropic.com/v1/messages';
-  static const _model = 'claude-sonnet-4-6';
+  static Future<String> _requestAi({
+    required String system,
+    required List<Map<String, dynamic>> messages,
+    required int maxTokens,
+  }) async {
+    final response = await SupabaseService.client.functions.invoke(
+      'kloudy-ai',
+      body: {'system': system, 'messages': messages, 'max_tokens': maxTokens},
+    );
+    final body = response.data;
+    if (response.status < 200 || response.status >= 300 || body is! Map) {
+      throw Exception(
+        'Kloudy is unavailable right now. Try again in a moment.',
+      );
+    }
+    final text = body['text'];
+    if (text is! String || text.trim().isEmpty) {
+      throw Exception('Kloudy returned an empty response. Try again.');
+    }
+    return text;
+  }
 
   static const _baseSystemPrompt = '''
 You are Kloudy — a personal wellness companion for young adults, especially those from communities where financial literacy, health knowledge, and self-care skills were never passed down.
@@ -67,7 +85,9 @@ Never use phrases that imply endurance or survival in casual, non-crisis context
     if (context == null || context.isEmpty) return _baseSystemPrompt;
 
     final buf = StringBuffer(_baseSystemPrompt);
-    buf.writeln('\n---\nCurrent user context (use this to personalize every response):\n');
+    buf.writeln(
+      '\n---\nCurrent user context (use this to personalize every response):\n',
+    );
 
     // Goals
     final goals = <String>[];
@@ -75,25 +95,44 @@ Never use phrases that imply endurance or survival in casual, non-crisis context
     if (context['build_muscle'] == true) goals.add('build muscle');
     if (context['improve_nutrition'] == true) goals.add('improve nutrition');
     if (context['improve_sleep'] == true) goals.add('improve sleep');
-    if (context['improve_mental_health'] == true) goals.add('improve mental health');
-    if (context['build_healthier_habits'] == true) goals.add('build healthier habits');
+    if (context['improve_mental_health'] == true)
+      goals.add('improve mental health');
+    if (context['build_healthier_habits'] == true)
+      goals.add('build healthier habits');
     if (context['save_money'] == true) goals.add('save money');
     if (context['build_wealth'] == true) goals.add('build wealth');
     if (goals.isNotEmpty) buf.writeln('Goals: ${goals.join(', ')}');
+    final challenges = context['mindset_challenges'] as List? ?? const [];
+    final firstToSuffer =
+        context['mindset_first_to_suffer'] as List? ?? const [];
+    if (challenges.isNotEmpty)
+      buf.writeln('Current challenges: ${challenges.join(', ')}');
+    if (firstToSuffer.isNotEmpty)
+      buf.writeln(
+        'Areas that slip first under stress: ${firstToSuffer.join(', ')}',
+      );
 
     // Sleep
     final sleepStreak = context['sleep_streak'] as int?;
     final avgSleep = context['avg_sleep_7d'] as double?;
     final loggedSleepToday = context['logged_sleep_today'] as bool? ?? false;
-    if (sleepStreak != null) buf.writeln('Sleep streak: $sleepStreak day${sleepStreak == 1 ? '' : 's'}');
-    if (avgSleep != null) buf.writeln('Avg sleep (last 7 days): ${avgSleep.toStringAsFixed(1)} hrs');
+    if (sleepStreak != null)
+      buf.writeln(
+        'Sleep streak: $sleepStreak day${sleepStreak == 1 ? '' : 's'}',
+      );
+    if (avgSleep != null)
+      buf.writeln(
+        'Avg sleep (last 7 days): ${avgSleep.toStringAsFixed(1)} hrs',
+      );
     buf.writeln('Logged sleep today: ${loggedSleepToday ? 'yes' : 'not yet'}');
 
     // Nutrition
     final calsToday = context['calories_today'] as int?;
     final calsGoal = context['calorie_goal'] as int?;
     if (calsToday != null) {
-      buf.writeln('Calories today: $calsToday${calsGoal != null ? ' / $calsGoal target' : ''}');
+      buf.writeln(
+        'Calories today: $calsToday${calsGoal != null ? ' / $calsGoal target' : ''}',
+      );
     }
 
     // Finance
@@ -101,12 +140,44 @@ Never use phrases that imply endurance or survival in casual, non-crisis context
     final weeklySpent = context['weekly_spent'] as double?;
     if (weeklyBudget != null && weeklySpent != null) {
       final left = weeklyBudget - weeklySpent;
-      buf.writeln('Weekly budget: \$${weeklySpent.toStringAsFixed(0)} spent of \$${weeklyBudget.toStringAsFixed(0)} (\$${left.toStringAsFixed(0)} remaining)');
+      buf.writeln(
+        'Weekly budget: \$${weeklySpent.toStringAsFixed(0)} spent of \$${weeklyBudget.toStringAsFixed(0)} (\$${left.toStringAsFixed(0)} remaining)',
+      );
     }
 
     // Mood
     final mood = context['mood'] as String?;
-    if (mood != null) buf.writeln('Mood logged today: $mood');
+    if (mood != null) {
+      buf.writeln('Mood logged today: $mood');
+      switch (mood.toLowerCase()) {
+        case 'tired':
+          buf.writeln(
+            'Lead with low-effort support and offer help with rest or sleep.',
+          );
+          break;
+        case 'mourning':
+          buf.writeln(
+            'Respond gently to grief. Offer space to talk; do not rush toward fixing or optimism.',
+          );
+          break;
+        case 'anxious':
+        case 'worried':
+          buf.writeln(
+            'Use calm, grounding language and offer one manageable next step.',
+          );
+          break;
+        case 'lonely':
+          buf.writeln(
+            'Acknowledge loneliness and invite the user to share more without judgment.',
+          );
+          break;
+        case 'overwhelmed':
+          buf.writeln(
+            'Keep suggestions brief and help reduce the next step to something small.',
+          );
+          break;
+      }
+    }
 
     // Tasks
     final tasksTotal = context['tasks_total'] as int?;
@@ -119,33 +190,46 @@ Never use phrases that imply endurance or survival in casual, non-crisis context
   }
 
   static Future<String> generateInsight({
-    required String apiKey,
     required Map<String, dynamic> userContext,
   }) async {
+    if (SupabaseService.currentUser == null)
+      return 'One small step is enough to make today feel more manageable.';
     final hour = DateTime.now().hour;
     final timeLabel = hour < 12
         ? 'morning'
         : hour < 17
-            ? 'afternoon'
-            : hour < 21
-                ? 'evening'
-                : 'night';
+        ? 'afternoon'
+        : hour < 21
+        ? 'evening'
+        : 'night';
 
     final contextLines = <String>[];
-    if (userContext['mood'] != null) contextLines.add('mood: ${userContext['mood']}');
+    if (userContext['mood'] != null)
+      contextLines.add('mood: ${userContext['mood']}');
     if (userContext['calories_today'] != null) {
       final cal = userContext['calories_today'] as int;
       final goal = userContext['calorie_goal'] as int?;
-      contextLines.add('calories today: $cal${goal != null ? ' of $goal' : ''}');
+      contextLines.add(
+        'calories today: $cal${goal != null ? ' of $goal' : ''}',
+      );
     }
-    if (userContext['sleep_streak'] != null && (userContext['sleep_streak'] as int) > 0) {
+    if (userContext['sleep_streak'] != null &&
+        (userContext['sleep_streak'] as int) > 0) {
       contextLines.add('sleep streak: ${userContext['sleep_streak']} days');
     }
     if (userContext['avg_sleep_7d'] != null) {
-      contextLines.add('avg sleep: ${(userContext['avg_sleep_7d'] as double).toStringAsFixed(1)} hrs');
+      contextLines.add(
+        'avg sleep: ${(userContext['avg_sleep_7d'] as double).toStringAsFixed(1)} hrs',
+      );
     }
     final goals = <String>[];
-    for (final k in ['lose_weight', 'improve_sleep', 'save_money', 'improve_mental_health', 'build_muscle']) {
+    for (final k in [
+      'lose_weight',
+      'improve_sleep',
+      'save_money',
+      'improve_mental_health',
+      'build_muscle',
+    ]) {
       if (userContext[k] == true) goals.add(k.replaceAll('_', ' '));
     }
     if (goals.isNotEmpty) contextLines.add('goals: ${goals.join(', ')}');
@@ -154,141 +238,118 @@ Never use phrases that imply endurance or survival in casual, non-crisis context
         ? 'No user data yet.'
         : contextLines.join('. ');
 
-    final response = await http.post(
-      Uri.parse(_url),
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: jsonEncode({
-        'model': _model,
-        'max_tokens': 80,
-        'system': _baseSystemPrompt,
-        'messages': [
-          {
-            'role': 'user',
-            'content': 'Write a single warm 1-2 sentence home screen greeting for the user. '
-                'It is currently $timeLabel. $contextStr '
-                'Focus on what is ahead — food, energy, goals, or a simple warm hello. '
-                'NEVER use phrases like "made it", "you survived", "getting through", "hanging in there", or any language that implies endurance or hardship. '
-                'Keep it forward-looking, practical, and light. Under 30 words. No bullet points, no dashes.',
-          }
-        ],
-      }),
+    return _requestAi(
+      system: _buildSystemPrompt(userContext),
+      maxTokens: 80,
+      messages: [
+        {
+          'role': 'user',
+          'content':
+              'Write a single warm 1-2 sentence home screen greeting for the user. '
+              'It is currently $timeLabel. $contextStr '
+              'Focus on what is ahead — food, energy, goals, or a simple warm hello. '
+              'NEVER use phrases like "made it", "you survived", "getting through", "hanging in there", or any language that implies endurance or hardship. '
+              'Keep it forward-looking, practical, and light. Under 30 words. No bullet points, no dashes.',
+        },
+      ],
     );
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final content = data['content'] as List<dynamic>;
-      return (content.first as Map<String, dynamic>)['text'] as String;
-    }
-    throw Exception('${response.statusCode}');
   }
 
   static Future<String> generateReflectionPrompt({
-    required String apiKey,
     required List<String> challenges,
   }) async {
+    if (SupabaseService.currentUser == null)
+      return challenges.isEmpty
+          ? 'What is one thing you want to make a little easier this week?'
+          : 'What would a kind, realistic next step look like for ${challenges.first}?';
     final challengeStr = challenges.isEmpty
         ? ''
         : 'The user is working on: ${challenges.join(', ')}.';
-    final response = await http.post(
-      Uri.parse(_url),
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: jsonEncode({
-        'model': _model,
-        'max_tokens': 50,
-        'system': _baseSystemPrompt,
-        'messages': [
-          {
-            'role': 'user',
-            'content':
-                'Write one short wellness journaling prompt, under 18 words. '
-                '$challengeStr Open-ended, warm, grounded. '
-                'No bullet points, no quotation marks, no em dashes.',
-          }
-        ],
-      }),
+    return _requestAi(
+      system: _baseSystemPrompt,
+      maxTokens: 50,
+      messages: [
+        {
+          'role': 'user',
+          'content':
+              'Write one short wellness journaling prompt, under 18 words. '
+              '$challengeStr Open-ended, warm, grounded. '
+              'No bullet points, no quotation marks, no em dashes.',
+        },
+      ],
     );
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final content = data['content'] as List<dynamic>;
-      return (content.first as Map<String, dynamic>)['text'] as String;
-    }
-    throw Exception('${response.statusCode}');
   }
 
   static Future<String> respondToReflection({
-    required String apiKey,
     required String prompt,
     required String userResponse,
   }) async {
-    final response = await http.post(
-      Uri.parse(_url),
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: jsonEncode({
-        'model': _model,
-        'max_tokens': 120,
-        'system': _baseSystemPrompt,
-        'messages': [
-          {
-            'role': 'user',
-            'content':
-                'I just answered a wellness journal prompt. Prompt: "$prompt". '
-                'My response: "$userResponse". '
-                'Reply in 2-3 warm, real sentences — like a trusted friend reacting. '
-                'No bullet points, no em dashes.',
-          }
-        ],
-      }),
+    if (SupabaseService.currentUser == null)
+      return 'Thanks for putting that into words. What you noticed matters, and you can take the next step at your own pace.';
+    return _requestAi(
+      system: _baseSystemPrompt,
+      maxTokens: 120,
+      messages: [
+        {
+          'role': 'user',
+          'content':
+              'I just answered a wellness journal prompt. Prompt: "$prompt". '
+              'My response: "$userResponse". '
+              'Reply in 2-3 warm, real sentences — like a trusted friend reacting. '
+              'No bullet points, no em dashes.',
+        },
+      ],
     );
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final content = data['content'] as List<dynamic>;
-      return (content.first as Map<String, dynamic>)['text'] as String;
-    }
-    throw Exception('${response.statusCode}');
   }
 
   static Future<String> send({
-    required String apiKey,
     required List<ChatMessage> history,
     required String message,
     Map<String, dynamic>? userContext,
   }) async {
-    final response = await http.post(
-      Uri.parse(_url),
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: jsonEncode({
-        'model': _model,
-        'max_tokens': 1024,
-        'system': _buildSystemPrompt(userContext),
-        'messages': [
-          ...history.map((m) => m.toApiJson()),
-          {'role': 'user', 'content': message},
-        ],
-      }),
+    if (SupabaseService.currentUser == null)
+      return _demoReply(message, userContext ?? const {});
+    return _requestAi(
+      system: _buildSystemPrompt(userContext),
+      maxTokens: 1024,
+      messages: [
+        ...history.map((m) => m.toApiJson()),
+        {'role': 'user', 'content': message},
+      ],
     );
+  }
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final content = data['content'] as List<dynamic>;
-      return (content.first as Map<String, dynamic>)['text'] as String;
+  static String _demoReply(String message, Map<String, dynamic> context) {
+    final text = message.toLowerCase();
+    if (text.contains('dinner') ||
+        text.contains('recipe') ||
+        text.contains('protein')) {
+      return 'A simple option: a bowl with rotisserie chicken or seasoned beans, microwave rice, frozen vegetables, and salsa or Greek yogurt on top. It is filling, easy to customize, and you can swap in whatever is on sale. Want a short grocery list or a no-cook version?';
     }
-
-    throw Exception('Kloudy is unavailable right now (${response.statusCode}). Try again in a moment.');
+    if (text.contains('budget') ||
+        text.contains('money') ||
+        text.contains('spend')) {
+      return 'A budget is just a plan for where your money goes. Start with what comes in, subtract bills and basics, then give the rest a few jobs: food, getting around, savings, and fun. We can make the first version together with rough numbers.';
+    }
+    if (text.contains('appointment') ||
+        text.contains('doctor') ||
+        text.contains('clinic')) {
+      return 'You can say: “Hi, I’m a new patient and I’d like to schedule an appointment for [reason]. What information do you need from me, and what might the visit cost?” Have your insurance card and a few dates handy. It is okay to ask them to slow down or explain anything.';
+    }
+    if (text.contains('routine') ||
+        text.contains('plan') ||
+        text.contains('today')) {
+      return 'Let’s make it small enough to fit a real day. Choose one must-do, one thing that supports future-you, and one pause. What has to happen today, and when do you usually have the most energy?';
+    }
+    final goals = <String>[];
+    if (context['lose_weight'] == true)
+      goals.add('food that supports your goals');
+    if (context['save_money'] == true)
+      goals.add('keeping spending comfortable');
+    if (context['improve_sleep'] == true) goals.add('a gentler wind-down');
+    final focus = goals.isEmpty
+        ? 'the thing on your mind'
+        : goals.join(' and ');
+    return 'I’m here to help make $focus feel less complicated. Tell me a little about what’s going on, and we’ll figure out one practical next step together.';
   }
 }

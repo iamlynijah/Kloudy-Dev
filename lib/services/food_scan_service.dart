@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
-import '../config/api_config.dart';
+import 'supabase_service.dart';
 
 class FoodScanResult {
   final String name;
@@ -21,56 +21,57 @@ class FoodScanResult {
   });
 
   FoodScanResult scaled(double quantity) => FoodScanResult(
-        name: name,
-        calories: (calories * quantity).round(),
-        protein: protein * quantity,
-        carbs: carbs * quantity,
-        fat: fat * quantity,
-        serving: serving,
-      );
+    name: name,
+    calories: (calories * quantity).round(),
+    protein: protein * quantity,
+    carbs: carbs * quantity,
+    fat: fat * quantity,
+    serving: serving,
+  );
 }
 
 class FoodScanService {
   static Future<FoodScanResult?> analyzeImage(Uint8List imageBytes) async {
+    if (SupabaseService.currentUser == null) return null;
     final base64Image = base64Encode(imageBytes);
-    final response = await http.post(
-      Uri.parse('https://api.anthropic.com/v1/messages'),
-      headers: {
-        'x-api-key': kAnthropicApiKey,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: jsonEncode({
-        'model': 'claude-haiku-4-5-20251001',
-        'max_tokens': 256,
-        'messages': [
-          {
-            'role': 'user',
-            'content': [
-              {
-                'type': 'image',
-                'source': {
-                  'type': 'base64',
-                  'media_type': 'image/jpeg',
-                  'data': base64Image,
+    try {
+      final response = await SupabaseService.client.functions.invoke(
+        'kloudy-ai',
+        body: {
+          'system':
+              'You identify food and estimate nutrition from images. Return a concise JSON object only.',
+          'model': 'claude-haiku-4-5-20251001',
+          'max_tokens': 256,
+          'messages': [
+            {
+              'role': 'user',
+              'content': [
+                {
+                  'type': 'image',
+                  'source': {
+                    'type': 'base64',
+                    'media_type': 'image/jpeg',
+                    'data': base64Image,
+                  },
                 },
-              },
-              {
-                'type': 'text',
-                'text':
-                    'Identify the food in this image and estimate nutrition for the portion shown.\n\nReturn ONLY a JSON object — no other text:\n{"name":"food name","calories":0,"protein":0.0,"carbs":0.0,"fat":0.0,"serving":"portion description"}\n\nServing examples: "1 cup", "medium portion", "2 slices (~4 oz)", "1 banana (118g)"\n\nIf food cannot be identified clearly, return: {"error":"unrecognized"}',
-              },
-            ],
-          },
-        ],
-      }),
-    );
-
-    if (response.statusCode != 200) return null;
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    final content = (data['content'] as List?)?.firstOrNull;
-    if (content == null) return null;
-    return _parseJson(content['text'] as String? ?? '');
+                {
+                  'type': 'text',
+                  'text':
+                      'Identify the food in this image and estimate nutrition for the portion shown.\n\nReturn ONLY a JSON object — no other text:\n{"name":"food name","calories":0,"protein":0.0,"carbs":0.0,"fat":0.0,"serving":"portion description"}\n\nServing examples: "1 cup", "medium portion", "2 slices (~4 oz)", "1 banana (118g)"\n\nIf food cannot be identified clearly, return: {"error":"unrecognized"}',
+                },
+              ],
+            },
+          ],
+        },
+      );
+      final data = response.data;
+      if (data is! Map || response.status < 200 || response.status >= 300) {
+        return null;
+      }
+      return _parseJson(data['text'] as String? ?? '');
+    } catch (_) {
+      return null;
+    }
   }
 
   static Future<FoodScanResult?> lookupBarcode(String barcode) async {
@@ -114,7 +115,8 @@ class FoodScanService {
     final end = text.lastIndexOf('}');
     if (start < 0 || end <= start) return null;
     try {
-      final j = jsonDecode(text.substring(start, end + 1)) as Map<String, dynamic>;
+      final j =
+          jsonDecode(text.substring(start, end + 1)) as Map<String, dynamic>;
       if (j['error'] != null) return null;
       return FoodScanResult(
         name: j['name'] as String? ?? 'Unknown food',

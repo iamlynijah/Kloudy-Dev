@@ -1,22 +1,36 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user_onboarding_data.dart';
+import '../demo/demo_profile.dart';
 
 /// Central place for Supabase config + helper methods.
 class SupabaseService {
-  static const String _supabaseUrl = 'https://aoepanrphyhmtlktftyg.supabase.co';
-  static const String _supabaseAnonKey =
-      'sb_publishable_gAMYjifv46LY9D7VdJcrcQ_0ouCz4SI';
+  static const String authRedirectUrl = 'kloudy://login-callback/';
+  static const String _supabaseUrl = String.fromEnvironment(
+    'SUPABASE_URL',
+    defaultValue: 'https://aoepanrphyhmtlktftyg.supabase.co',
+  );
+  static const String _supabasePublishableKey = String.fromEnvironment(
+    'SUPABASE_PUBLISHABLE_KEY',
+    defaultValue: 'sb_publishable_gAMYjifv46LY9D7VdJcrcQ_0ouCz4SI',
+  );
+
+  static bool _initialized = false;
+  static bool get isInitialized => _initialized;
 
   static SupabaseClient get client => Supabase.instance.client;
 
   static Future<void> initialize() async {
+    if (_initialized) return;
     await Supabase.initialize(
       url: _supabaseUrl,
-      anonKey: _supabaseAnonKey,
+      publishableKey: _supabasePublishableKey,
     );
+    _initialized = true;
   }
 
-  static User? get currentUser => client.auth.currentUser;
+  static User? get currentUser =>
+      DemoProfile.isDemo ? null : client.auth.currentUser;
 
   // ── Save onboarding data to profiles table ──
   static Future<void> saveProfile(UserOnboardingData data) async {
@@ -66,15 +80,10 @@ class SupabaseService {
     await Future.wait([
       // Time-series log — never overwritten, accumulates indefinitely.
       // This is what enables the sleep/mood/spending correlation analysis later.
-      client.from('mood_logs').insert({
-        'user_id': userId,
-        'mood': mood,
-      }),
+      client.from('mood_logs').insert({'user_id': userId, 'mood': mood}),
       // Current mood on profile — overwrites each time, used purely
       // to restore the highlighted state on next app launch.
-      client.from('profiles').update({
-        'current_mood': mood,
-      }).eq('id', userId),
+      client.from('profiles').update({'current_mood': mood}).eq('id', userId),
     ]);
   }
 
@@ -114,6 +123,78 @@ class SupabaseService {
     );
     answers['health'] = data;
     await client.from('profiles').upsert({'id': userId, 'answers': answers});
+    try {
+      await _syncHabitTables(userId, data);
+    } catch (error) {
+      // The profile JSON remains the compatibility source until the additive
+      // streak migration is applied to the Supabase project.
+      debugPrint('[SupabaseService] Habit table sync failed: $error');
+    }
+  }
+
+  static Future<void> _syncHabitTables(
+    String userId,
+    Map<String, dynamic> healthData,
+  ) async {
+    final streaks = (healthData['streaks'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .toList();
+    final existing = await client
+        .from('habits')
+        .select('id')
+        .eq('user_id', userId);
+    final existingIds = (existing as List)
+        .map((row) => row['id'] as String)
+        .toSet();
+    final incomingIds = streaks.map((row) => row['id'] as String).toSet();
+
+    for (final staleId in existingIds.difference(incomingIds)) {
+      await client
+          .from('habits')
+          .delete()
+          .eq('user_id', userId)
+          .eq('id', staleId);
+    }
+    if (streaks.isEmpty) return;
+
+    final habitRows = streaks.map((streak) {
+      return {
+        'id': streak['id'],
+        'user_id': userId,
+        'name': streak['name'],
+        'icon_code_point': streak['icon_code_point'],
+        'cadence': streak['cadence'],
+        'weekly_target': streak['weekly_target'] ?? 3,
+        'scheduled_days': streak['scheduled_days'] ?? [1, 3, 5],
+        'current_streak': streak['current_streak'] ?? 0,
+        'best_streak': streak['best_streak'] ?? 0,
+        'shared_with_friends': streak['shared_with_friends'] ?? false,
+        'auto_evaluated': streak['auto_evaluated'] ?? false,
+        'is_active': true,
+      };
+    }).toList();
+    await client.from('habits').upsert(habitRows, onConflict: 'user_id,id');
+
+    final checkIns = <Map<String, dynamic>>[];
+    for (final streak in streaks) {
+      for (final rawDate in (streak['check_ins'] as List<dynamic>? ?? [])) {
+        final date = DateTime.parse(rawDate as String);
+        checkIns.add({
+          'habit_id': streak['id'],
+          'user_id': userId,
+          'completed_on': date.toIso8601String().split('T').first,
+        });
+      }
+    }
+    if (checkIns.isNotEmpty) {
+      await client
+          .from('habit_check_ins')
+          .upsert(
+            checkIns,
+            onConflict: 'habit_id,user_id,completed_on',
+            ignoreDuplicates: true,
+          );
+    }
   }
 
   // ── Fetch saved health data ──
@@ -121,6 +202,67 @@ class SupabaseService {
     final profile = await fetchProfile();
     final answers = profile?['answers'] as Map<String, dynamic>?;
     return answers?['health'] as Map<String, dynamic>?;
+  }
+
+  static Future<String> createFriendInvite() async {
+    final code = await client.rpc('create_friend_invite');
+    return code as String;
+  }
+
+  static Future<String> acceptFriendInvite(String code) async {
+    final friendId = await client.rpc(
+      'accept_friend_invite',
+      params: {'p_code': code},
+    );
+    return friendId.toString();
+  }
+
+  static Future<List<Map<String, dynamic>>> fetchFriends() async {
+    final rows = await client.rpc('get_my_friends');
+    return (rows as List).cast<Map<String, dynamic>>();
+  }
+
+  static Future<void> removeFriend(String friendId) async {
+    final userId = currentUser?.id;
+    if (userId == null) throw Exception('Not authenticated');
+    final pair = [userId, friendId]..sort();
+    await client
+        .from('friend_connections')
+        .delete()
+        .eq('member_low', pair.first)
+        .eq('member_high', pair.last);
+  }
+
+  static Future<Map<String, dynamic>?> fetchSharedHabit(
+    String friendId,
+    String habitName,
+  ) async {
+    final rows = await client
+        .from('habits')
+        .select('id,name,current_streak,best_streak,updated_at')
+        .eq('user_id', friendId)
+        .eq('name', habitName)
+        .eq('shared_with_friends', true)
+        .eq('is_active', true)
+        .limit(1);
+    final habits = rows as List;
+    if (habits.isEmpty) return null;
+    final habit = Map<String, dynamic>.from(habits.first as Map);
+    final now = DateTime.now();
+    final weekStart = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).subtract(Duration(days: now.weekday - 1));
+    final checkIns = await client
+        .from('habit_check_ins')
+        .select('id')
+        .eq('user_id', friendId)
+        .eq('habit_id', habit['id'] as String)
+        .gte('completed_on', weekStart.toIso8601String().split('T').first)
+        .limit(1);
+    habit['active_this_week'] = (checkIns as List).isNotEmpty;
+    return habit;
   }
 
   // ── Save nutrition data into answers['nutrition'] ──
@@ -161,6 +303,23 @@ class SupabaseService {
     return answers?['mindset'] as Map<String, dynamic>?;
   }
 
+  static Future<Map<String, dynamic>?> fetchLearningData() async {
+    final profile = await fetchProfile();
+    final answers = profile?['answers'] as Map<String, dynamic>?;
+    return answers?['learning'] as Map<String, dynamic>?;
+  }
+
+  static Future<void> saveLearningData(Map<String, dynamic> data) async {
+    final userId = currentUser?.id;
+    if (userId == null) return;
+    final existing = await fetchProfile();
+    final answers = Map<String, dynamic>.from(
+      (existing?['answers'] as Map<String, dynamic>?) ?? {},
+    );
+    answers['learning'] = data;
+    await client.from('profiles').upsert({'id': userId, 'answers': answers});
+  }
+
   // ── Set individual goal flags on the profile row ──
   // Used when a user unlocks a tab that wasn't part of their initial goals.
   static Future<void> setGoalFlags(Map<String, bool> flags) async {
@@ -193,7 +352,11 @@ class SupabaseService {
     return streak;
   }
 
-  static Future<void> saveSleepLog(double hours) async {
+  static Future<void> saveSleepLog(
+    double hours, {
+    String? bedTime,
+    String? wakeTime,
+  }) async {
     final userId = currentUser?.id;
     if (userId == null) return;
     final existing = await fetchProfile();
@@ -204,16 +367,28 @@ class SupabaseService {
       (answers['sleep'] as Map<String, dynamic>?) ?? {},
     );
     final logs = List<Map<String, dynamic>>.from(
-      (sleepMap['logs'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)),
+      (sleepMap['logs'] as List? ?? []).map(
+        (e) => Map<String, dynamic>.from(e as Map),
+      ),
     );
     final today = DateTime.now();
     final todayStr =
         '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
     final idx = logs.indexWhere((l) => l['date'] == todayStr);
     if (idx >= 0) {
-      logs[idx] = {'date': todayStr, 'hours': hours};
+      logs[idx] = {
+        'date': todayStr,
+        'hours': hours,
+        if (bedTime != null) 'bed_time': bedTime,
+        if (wakeTime != null) 'wake_time': wakeTime,
+      };
     } else {
-      logs.add({'date': todayStr, 'hours': hours});
+      logs.add({
+        'date': todayStr,
+        'hours': hours,
+        if (bedTime != null) 'bed_time': bedTime,
+        if (wakeTime != null) 'wake_time': wakeTime,
+      });
     }
     logs.sort((a, b) => (b['date'] as String).compareTo(a['date'] as String));
     final trimmed = logs.take(90).toList();
@@ -321,19 +496,23 @@ class SupabaseService {
   static Future<String> createChatSession({String title = 'New chat'}) async {
     final userId = currentUser?.id;
     if (userId == null) throw Exception('Not authenticated');
-    final row = await client.from('chat_sessions').insert({
-      'user_id': userId,
-      'title': title,
-    }).select().single();
+    final row = await client
+        .from('chat_sessions')
+        .insert({'user_id': userId, 'title': title})
+        .select()
+        .single();
     return row['id'] as String;
   }
 
   static Future<void> updateSessionTitle(String sessionId, String title) async {
     try {
-      await client.from('chat_sessions').update({
-        'title': title,
-        'updated_at': DateTime.now().toIso8601String(),
-      }).eq('id', sessionId);
+      await client
+          .from('chat_sessions')
+          .update({
+            'title': title,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', sessionId);
     } catch (_) {}
   }
 
@@ -363,10 +542,7 @@ class SupabaseService {
     final userId = currentUser?.id;
     if (userId == null) return [];
     try {
-      var query = client
-          .from('chat_messages')
-          .select()
-          .eq('user_id', userId);
+      var query = client.from('chat_messages').select().eq('user_id', userId);
       if (sessionId != null) {
         query = query.eq('session_id', sessionId);
       }
@@ -415,38 +591,60 @@ class SupabaseService {
 
       // Goals from profile
       for (final key in [
-        'lose_weight', 'build_muscle', 'improve_nutrition',
-        'improve_sleep', 'improve_mental_health', 'build_healthier_habits',
-        'save_money', 'build_wealth',
+        'lose_weight',
+        'build_muscle',
+        'improve_nutrition',
+        'improve_sleep',
+        'improve_mental_health',
+        'build_healthier_habits',
+        'save_money',
+        'build_wealth',
       ]) {
         if (profile?[key] == true) context[key] = true;
       }
 
       // Mood
       context['mood'] = profile?['current_mood'] as String?;
+      final answers = profile?['answers'] as Map<String, dynamic>? ?? {};
+      final mindsetGoals =
+          answers['mindset_goals'] as Map<String, dynamic>? ?? {};
+      context['mindset_challenges'] =
+          mindsetGoals['mental_challenges'] ?? const <String>[];
+      context['mindset_first_to_suffer'] =
+          mindsetGoals['mental_first_to_suffer'] ?? const <String>[];
 
       // Sleep
       final logs = (sleep?['logs'] as List<dynamic>? ?? []);
       context['sleep_streak'] = sleep?['streak'] as int? ?? 0;
-      context['logged_sleep_today'] = logs.any((l) => (l as Map)['date'] == today);
+      context['logged_sleep_today'] = logs.any(
+        (l) => (l as Map)['date'] == today,
+      );
       if (logs.isNotEmpty) {
         final recent = logs.reversed.take(7).toList();
-        final total = recent.fold<double>(0, (s, l) => s + ((l as Map)['hours'] as num).toDouble());
+        final total = recent.fold<double>(
+          0,
+          (s, l) => s + ((l as Map)['hours'] as num).toDouble(),
+        );
         context['avg_sleep_7d'] = total / recent.length;
       }
 
       // Nutrition
       final foodLogs = nutrition?['food_logs'] as Map<String, dynamic>?;
       final todayEntries = (foodLogs?[today] as List<dynamic>? ?? []);
-      final calsToday = todayEntries.fold<int>(0, (s, e) => s + ((e as Map)['calories'] as num).toInt());
+      final calsToday = todayEntries.fold<int>(
+        0,
+        (s, e) => s + ((e as Map)['calories'] as num).toInt(),
+      );
       if (calsToday > 0) context['calories_today'] = calsToday;
       final nutritionProfile = nutrition?['profile'] as Map<String, dynamic>?;
-      final calorieGoal = nutritionProfile?['dailyCalorieTarget'] as int?;
+      final calorieGoal = nutritionProfile?['calorie_goal'] as int?;
       if (calorieGoal != null) context['calorie_goal'] = calorieGoal;
 
       // Finance
-      final financeAnswers = (profile?['answers'] as Map?)?['finance'] as Map<String, dynamic>?;
-      final weeklyBudget = (financeAnswers?['weekly_budget'] as num?)?.toDouble();
+      final financeAnswers =
+          (profile?['answers'] as Map?)?['finance'] as Map<String, dynamic>?;
+      final weeklyBudget = (financeAnswers?['weekly_budget'] as num?)
+          ?.toDouble();
       if (weeklyBudget != null) {
         context['weekly_budget'] = weeklyBudget;
         // Spending would come from transaction data; placeholder for now

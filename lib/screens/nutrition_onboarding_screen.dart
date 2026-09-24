@@ -7,6 +7,7 @@ class NutritionOnboardingScreen extends StatefulWidget {
   final double? initialGoalWeight;
   final NutritionGoalType? initialGoalType;
   final int? initialAge;
+  final NutritionProfile? initialProfile;
 
   const NutritionOnboardingScreen({
     super.key,
@@ -14,11 +15,11 @@ class NutritionOnboardingScreen extends StatefulWidget {
     this.initialGoalWeight,
     this.initialGoalType,
     this.initialAge,
+    this.initialProfile,
   });
 
   @override
-  State<NutritionOnboardingScreen> createState() =>
-      _NutritionOnboardingState();
+  State<NutritionOnboardingScreen> createState() => _NutritionOnboardingState();
 }
 
 class _NutritionOnboardingState extends State<NutritionOnboardingScreen> {
@@ -41,7 +42,8 @@ class _NutritionOnboardingState extends State<NutritionOnboardingScreen> {
   final List<String> _dietStyles = [];
   final List<String> _sensitivities = [];
   int _mealsPerDay = 3;
-  int _flexDaysPerWeek = 0;
+  int _flexMode = 0;
+  int _flexDayOfWeek = 7;
   bool _trackAlcohol = false;
 
   // Step 3: Meds
@@ -75,6 +77,36 @@ class _NutritionOnboardingState extends State<NutritionOnboardingScreen> {
     }
     if (widget.initialAge != null) {
       _age = widget.initialAge!;
+    }
+    final saved = widget.initialProfile;
+    if (saved != null) {
+      _heightFeet = saved.heightInches ~/ 12;
+      _heightInches = (saved.heightInches.round() % 12);
+      _age = saved.age;
+      _sex = saved.sex;
+      _activityLevel = saved.activityLevel;
+      _dietStyles.addAll(saved.dietStyles);
+      _sensitivities.addAll(saved.foodSensitivities);
+      _mealsPerDay = saved.mealsPerDay;
+      _flexMode = switch (saved.flexibilitySchedule) {
+        'weekly' => 1,
+        'monthly' => 2,
+        _ => 0,
+      };
+      _flexDayOfWeek = saved.flexibilityWeekday;
+      _trackAlcohol = saved.trackAlcohol;
+      _selectedMeds.addAll(saved.medications);
+      _medicationReminders = saved.medicationReminders;
+      _reminderFrequency = saved.reminderFrequency;
+      _reminderTimes = List.from(saved.reminderTimes);
+      _supplements.addAll(saved.supplements);
+      _motivation = saved.motivation;
+      _caloriesCtrl.text = '${saved.calorieGoal}';
+      _proteinCtrl.text = '${saved.proteinGoal}';
+      _carbsCtrl.text = '${saved.carbGoal}';
+      _fatCtrl.text = '${saved.fatGoal}';
+      _waterCups = saved.waterCupsGoal;
+      _targetsComputed = true;
     }
   }
 
@@ -138,16 +170,17 @@ class _NutritionOnboardingState extends State<NutritionOnboardingScreen> {
           controller: ctrl,
           autofocus: true,
           textCapitalization: TextCapitalization.words,
-          decoration:
-              const InputDecoration(hintText: 'e.g. Magnesium'),
+          decoration: const InputDecoration(hintText: 'e.g. Magnesium'),
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
           TextButton(
-              onPressed: () => Navigator.pop(context, ctrl.text.trim()),
-              child: const Text('Add')),
+            onPressed: () => Navigator.pop(context, ctrl.text.trim()),
+            child: const Text('Add'),
+          ),
         ],
       ),
     );
@@ -166,20 +199,23 @@ class _NutritionOnboardingState extends State<NutritionOnboardingScreen> {
           controller: ctrl,
           autofocus: true,
           textCapitalization: TextCapitalization.words,
-          decoration:
-              const InputDecoration(hintText: 'e.g. Lisinopril'),
+          decoration: const InputDecoration(hintText: 'e.g. Lisinopril'),
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
           TextButton(
-              onPressed: () => Navigator.pop(context, ctrl.text.trim()),
-              child: const Text('Add')),
+            onPressed: () => Navigator.pop(context, ctrl.text.trim()),
+            child: const Text('Add'),
+          ),
         ],
       ),
     );
-    if (result != null && result.isNotEmpty && !_selectedMeds.contains(result)) {
+    if (result != null &&
+        result.isNotEmpty &&
+        !_selectedMeds.contains(result)) {
       setState(() => _selectedMeds.add(result));
     }
   }
@@ -201,7 +237,9 @@ class _NutritionOnboardingState extends State<NutritionOnboardingScreen> {
       dietStyles: List.from(_dietStyles),
       foodSensitivities: List.from(_sensitivities),
       mealsPerDay: _mealsPerDay,
-      flexDaysPerWeek: _flexDaysPerWeek,
+      flexDaysPerWeek: _flexMode == 1 ? 1 : 0,
+      flexibilitySchedule: ['none', 'weekly', 'monthly'][_flexMode],
+      flexibilityWeekday: _flexDayOfWeek,
       trackAlcohol: _trackAlcohol,
       medications: List.from(_selectedMeds),
       medicationReminders: _medicationReminders,
@@ -222,7 +260,7 @@ class _NutritionOnboardingState extends State<NutritionOnboardingScreen> {
       'profile': profile.toJson(),
       'current_weight': startWeight,
       'weight_log': [
-        {'date': today, 'weight_lbs': startWeight}
+        {'date': today, 'weight_lbs': startWeight},
       ],
       'food_logs': <String, dynamic>{},
       'water_log': <String, dynamic>{},
@@ -286,7 +324,9 @@ class _NutritionOnboardingState extends State<NutritionOnboardingScreen> {
                             decoration: BoxDecoration(
                               color: i <= _step
                                   ? Colors.black
-                                  : Theme.of(context).colorScheme.onSurface.withOpacity(0.15),
+                                  : Theme.of(
+                                      context,
+                                    ).colorScheme.onSurface.withOpacity(0.15),
                               borderRadius: BorderRadius.circular(4),
                             ),
                           );
@@ -298,13 +338,19 @@ class _NutritionOnboardingState extends State<NutritionOnboardingScreen> {
                   Text(
                     _stepTitles[_step],
                     style: const TextStyle(
-                        fontSize: 26, fontWeight: FontWeight.bold),
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     _stepSubtitles[_step],
                     style: TextStyle(
-                        fontSize: 14, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
+                      fontSize: 14,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.5),
+                    ),
                   ),
                 ],
               ),
@@ -318,119 +364,120 @@ class _NutritionOnboardingState extends State<NutritionOnboardingScreen> {
                   key: ValueKey(_step),
                   child: switch (_step) {
                     0 => _GoalStep(
-                        goalType: _goalType,
-                        startWeightCtrl: _startWeightCtrl,
-                        goalWeightCtrl: _goalWeightCtrl,
-                        pace: _paceLbsPerWeek,
-                        prefilledWeight: widget.initialWeight,
-                        prefilledGoalWeight: widget.initialGoalWeight,
-                        onGoalType: (t) => setState(() {
-                          _goalType = t;
-                          _targetsComputed = false;
-                        }),
-                        onPace: (p) => setState(() {
-                          _paceLbsPerWeek = p;
-                          _targetsComputed = false;
-                        }),
-                      ),
+                      goalType: _goalType,
+                      startWeightCtrl: _startWeightCtrl,
+                      goalWeightCtrl: _goalWeightCtrl,
+                      pace: _paceLbsPerWeek,
+                      prefilledWeight: widget.initialWeight,
+                      prefilledGoalWeight: widget.initialGoalWeight,
+                      onGoalType: (t) => setState(() {
+                        _goalType = t;
+                        _targetsComputed = false;
+                      }),
+                      onPace: (p) => setState(() {
+                        _paceLbsPerWeek = p;
+                        _targetsComputed = false;
+                      }),
+                    ),
                     1 => _BodyStep(
-                        heightFeet: _heightFeet,
-                        heightInches: _heightInches,
-                        age: _age,
-                        sex: _sex,
-                        activityLevel: _activityLevel,
-                        ageProvided: widget.initialAge != null,
-                        onFeet: (v) => setState(() {
-                          _heightFeet = v;
-                          _targetsComputed = false;
-                        }),
-                        onInches: (v) => setState(() {
-                          _heightInches = v;
-                          _targetsComputed = false;
-                        }),
-                        onAge: (v) => setState(() {
-                          _age = v;
-                          _targetsComputed = false;
-                        }),
-                        onSex: (v) => setState(() {
-                          _sex = v;
-                          _targetsComputed = false;
-                        }),
-                        onActivity: (v) => setState(() {
-                          _activityLevel = v;
-                          _targetsComputed = false;
-                        }),
-                      ),
+                      heightFeet: _heightFeet,
+                      heightInches: _heightInches,
+                      age: _age,
+                      sex: _sex,
+                      activityLevel: _activityLevel,
+                      ageProvided: widget.initialAge != null,
+                      onFeet: (v) => setState(() {
+                        _heightFeet = v;
+                        _targetsComputed = false;
+                      }),
+                      onInches: (v) => setState(() {
+                        _heightInches = v;
+                        _targetsComputed = false;
+                      }),
+                      onAge: (v) => setState(() {
+                        _age = v;
+                        _targetsComputed = false;
+                      }),
+                      onSex: (v) => setState(() {
+                        _sex = v;
+                        _targetsComputed = false;
+                      }),
+                      onActivity: (v) => setState(() {
+                        _activityLevel = v;
+                        _targetsComputed = false;
+                      }),
+                    ),
                     2 => _EatingStep(
-                        dietStyles: _dietStyles,
-                        sensitivities: _sensitivities,
-                        mealsPerDay: _mealsPerDay,
-                        flexDays: _flexDaysPerWeek,
-                        trackAlcohol: _trackAlcohol,
-                        onToggleDiet: (s) => setState(() {
-                          _dietStyles.contains(s)
-                              ? _dietStyles.remove(s)
-                              : _dietStyles.add(s);
-                          _targetsComputed = false;
-                        }),
-                        onToggleSens: (s) => setState(() {
-                          _sensitivities.contains(s)
-                              ? _sensitivities.remove(s)
-                              : _sensitivities.add(s);
-                        }),
-                        onMeals: (v) => setState(() => _mealsPerDay = v),
-                        onFlex: (v) => setState(() => _flexDaysPerWeek = v),
-                        onAlcohol: (v) => setState(() => _trackAlcohol = v),
-                      ),
+                      dietStyles: _dietStyles,
+                      sensitivities: _sensitivities,
+                      mealsPerDay: _mealsPerDay,
+                      flexDays: _flexMode,
+                      flexDayOfWeek: _flexDayOfWeek,
+                      trackAlcohol: _trackAlcohol,
+                      onToggleDiet: (s) => setState(() {
+                        _dietStyles.contains(s)
+                            ? _dietStyles.remove(s)
+                            : _dietStyles.add(s);
+                        _targetsComputed = false;
+                      }),
+                      onToggleSens: (s) => setState(() {
+                        _sensitivities.contains(s)
+                            ? _sensitivities.remove(s)
+                            : _sensitivities.add(s);
+                      }),
+                      onMeals: (v) => setState(() => _mealsPerDay = v),
+                      onFlex: (v) => setState(() => _flexMode = v),
+                      onFlexDay: (v) => setState(() => _flexDayOfWeek = v),
+                      onAlcohol: (v) => setState(() => _trackAlcohol = v),
+                    ),
                     3 => _MedsStep(
-                        takesMeds: _takesMeds,
-                        selectedMeds: _selectedMeds,
-                        reminders: _medicationReminders,
-                        reminderFrequency: _reminderFrequency,
-                        reminderTimes: _reminderTimes,
-                        supplements: _supplements,
-                        motivation: _motivation,
-                        onTakesMeds: (v) =>
-                            setState(() => _takesMeds = v),
-                        onToggleMed: (v) => setState(() {
-                          _selectedMeds.contains(v)
-                              ? _selectedMeds.remove(v)
-                              : _selectedMeds.add(v);
-                        }),
-                        onAddMedication: _addCustomMedication,
-                        onReminders: (v) =>
-                            setState(() => _medicationReminders = v),
-                        onReminderFrequency: (freq) => setState(() {
-                          _reminderFrequency = freq;
-                          if (freq == 'twice_daily' &&
-                              _reminderTimes.length < 2) {
-                            _reminderTimes = [..._reminderTimes, '20:00'];
-                          } else if (freq != 'twice_daily' &&
-                              _reminderTimes.length > 1) {
-                            _reminderTimes = [_reminderTimes.first];
-                          }
-                        }),
-                        onReminderTime: (index, time) => setState(() {
-                          if (index < _reminderTimes.length) {
-                            _reminderTimes[index] = time;
-                          }
-                        }),
-                        onToggleSupplement: (s) => setState(() {
-                          _supplements.contains(s)
-                              ? _supplements.remove(s)
-                              : _supplements.add(s);
-                        }),
-                        onAddSupplement: _addCustomSupplement,
-                        onMotivation: (v) => setState(() => _motivation = v),
-                      ),
+                      takesMeds: _takesMeds,
+                      selectedMeds: _selectedMeds,
+                      reminders: _medicationReminders,
+                      reminderFrequency: _reminderFrequency,
+                      reminderTimes: _reminderTimes,
+                      supplements: _supplements,
+                      motivation: _motivation,
+                      onTakesMeds: (v) => setState(() => _takesMeds = v),
+                      onToggleMed: (v) => setState(() {
+                        _selectedMeds.contains(v)
+                            ? _selectedMeds.remove(v)
+                            : _selectedMeds.add(v);
+                      }),
+                      onAddMedication: _addCustomMedication,
+                      onReminders: (v) =>
+                          setState(() => _medicationReminders = v),
+                      onReminderFrequency: (freq) => setState(() {
+                        _reminderFrequency = freq;
+                        if (freq == 'twice_daily' &&
+                            _reminderTimes.length < 2) {
+                          _reminderTimes = [..._reminderTimes, '20:00'];
+                        } else if (freq != 'twice_daily' &&
+                            _reminderTimes.length > 1) {
+                          _reminderTimes = [_reminderTimes.first];
+                        }
+                      }),
+                      onReminderTime: (index, time) => setState(() {
+                        if (index < _reminderTimes.length) {
+                          _reminderTimes[index] = time;
+                        }
+                      }),
+                      onToggleSupplement: (s) => setState(() {
+                        _supplements.contains(s)
+                            ? _supplements.remove(s)
+                            : _supplements.add(s);
+                      }),
+                      onAddSupplement: _addCustomSupplement,
+                      onMotivation: (v) => setState(() => _motivation = v),
+                    ),
                     _ => _TargetsStep(
-                        caloriesCtrl: _caloriesCtrl,
-                        proteinCtrl: _proteinCtrl,
-                        carbsCtrl: _carbsCtrl,
-                        fatCtrl: _fatCtrl,
-                        waterCups: _waterCups,
-                        onWater: (v) => setState(() => _waterCups = v),
-                      ),
+                      caloriesCtrl: _caloriesCtrl,
+                      proteinCtrl: _proteinCtrl,
+                      carbsCtrl: _carbsCtrl,
+                      fatCtrl: _fatCtrl,
+                      waterCups: _waterCups,
+                      onWater: (v) => setState(() => _waterCups = v),
+                    ),
                   },
                 ),
               ),
@@ -447,12 +494,15 @@ class _NutritionOnboardingState extends State<NutritionOnboardingScreen> {
                     backgroundColor: Theme.of(context).colorScheme.primary,
                     foregroundColor: Theme.of(context).colorScheme.onPrimary,
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(29)),
+                      borderRadius: BorderRadius.circular(29),
+                    ),
                   ),
                   child: Text(
                     _step == 4 ? "Let's go" : 'Continue',
                     style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w600),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
@@ -504,8 +554,10 @@ class _GoalStep extends StatelessWidget {
                 onTap: () => onGoalType(t),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: sel ? Colors.black : Colors.white,
                     borderRadius: BorderRadius.circular(24),
@@ -527,45 +579,59 @@ class _GoalStep extends StatelessWidget {
           if (prefilledWeight != null) ...[
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(color: Theme.of(context).cardColor,
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.08)),
+                border: Border.all(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.08),
+                ),
               ),
-              child: Row(children: [
-                const Icon(Icons.check_circle_outline, size: 16),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    prefilledGoalWeight != null
-                        ? '${prefilledWeight!.round()} lbs now  ·  ${prefilledGoalWeight!.round()} lbs goal'
-                        : '${prefilledWeight!.round()} lbs current weight',
-                    style: const TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w500),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle_outline, size: 16),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      prefilledGoalWeight != null
+                          ? '${prefilledWeight!.round()} lbs now  ·  ${prefilledGoalWeight!.round()} lbs goal'
+                          : '${prefilledWeight!.round()} lbs current weight',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                   ),
-                ),
-                Text(
-                  'from setup',
-                  style: TextStyle(
+                  Text(
+                    'from setup',
+                    style: TextStyle(
                       fontSize: 11,
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4)),
-                ),
-              ]),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.4),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ] else ...[
             _FieldLabel('Current weight (lbs)'),
             const SizedBox(height: 8),
             _NumField(
-                controller: startWeightCtrl,
-                hint: 'e.g. 165',
-                decimal: true),
+              controller: startWeightCtrl,
+              hint: 'e.g. 165',
+              decimal: true,
+            ),
             if (goalType.hasWeightGoal) ...[
               const SizedBox(height: 16),
               _FieldLabel('Goal weight (lbs)'),
               const SizedBox(height: 8),
               _NumField(
-                  controller: goalWeightCtrl,
-                  hint: 'e.g. 145',
-                  decimal: true),
+                controller: goalWeightCtrl,
+                hint: 'e.g. 145',
+                decimal: true,
+              ),
             ],
           ],
           // Pace picker — always shown when goal has a weight target
@@ -576,7 +642,11 @@ class _GoalStep extends StatelessWidget {
             ...[
               (0.5, 'Slow & steady', '0.5 lb/week — most sustainable'),
               (1.0, 'Moderate', '1 lb/week — recommended'),
-              (1.5, 'Aggressive', '1.5 lb/week — requires a lot of discipline and consistency'),
+              (
+                1.5,
+                'Aggressive',
+                '1.5 lb/week — requires a lot of discipline and consistency',
+              ),
             ].map((opt) {
               final sel = pace == opt.$1;
               return Padding(
@@ -586,7 +656,9 @@ class _GoalStep extends StatelessWidget {
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 14),
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
                     decoration: BoxDecoration(
                       color: sel ? Colors.black : Colors.white,
                       borderRadius: BorderRadius.circular(16),
@@ -611,15 +683,19 @@ class _GoalStep extends StatelessWidget {
                                   fontSize: 12,
                                   color: sel
                                       ? Colors.white.withOpacity(0.65)
-                                      : Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                                      : Theme.of(context).colorScheme.onSurface
+                                            .withOpacity(0.5),
                                 ),
                               ),
                             ],
                           ),
                         ),
                         if (sel)
-                          Icon(Icons.check_circle,
-                              color: Colors.white.withOpacity(0.8), size: 18),
+                          Icon(
+                            Icons.check_circle,
+                            color: Colors.white.withOpacity(0.8),
+                            size: 18,
+                          ),
                       ],
                     ),
                   ),
@@ -673,59 +749,79 @@ class _BodyStep extends StatelessWidget {
           // Height
           _FieldLabel('Height'),
           const SizedBox(height: 10),
-          Row(children: [
-            Expanded(
+          Row(
+            children: [
+              Expanded(
                 child: _Stepper(
-                    label: 'ft',
-                    value: heightFeet,
-                    min: 4,
-                    max: 7,
-                    onChanged: onFeet)),
-            const SizedBox(width: 12),
-            Expanded(
+                  label: 'ft',
+                  value: heightFeet,
+                  min: 4,
+                  max: 7,
+                  onChanged: onFeet,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
                 child: _Stepper(
-                    label: 'in',
-                    value: heightInches,
-                    min: 0,
-                    max: 11,
-                    onChanged: onInches)),
-          ]),
+                  label: 'in',
+                  value: heightInches,
+                  min: 0,
+                  max: 11,
+                  onChanged: onInches,
+                ),
+              ),
+            ],
+          ),
           if (!ageProvided) ...[
             const SizedBox(height: 20),
             _FieldLabel('Age'),
             const SizedBox(height: 10),
-            _Stepper(label: 'years', value: age, min: 16, max: 80, onChanged: onAge),
+            _Stepper(
+              label: 'years',
+              value: age,
+              min: 16,
+              max: 80,
+              onChanged: onAge,
+            ),
           ],
           const SizedBox(height: 20),
           // Sex
           _FieldLabel('Biological sex (for calorie calculation)'),
           const SizedBox(height: 10),
-          Row(children: [
-            for (final opt in [('male', 'Male'), ('female', 'Female'), ('other', 'Other')])
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: GestureDetector(
-                  onTap: () => onSex(opt.$1),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: sex == opt.$1 ? Colors.black : Colors.white,
-                      borderRadius: BorderRadius.circular(22),
-                    ),
-                    child: Text(
-                      opt.$2,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: sex == opt.$1 ? Colors.white : Colors.black,
+          Row(
+            children: [
+              for (final opt in [
+                ('male', 'Male'),
+                ('female', 'Female'),
+                ('other', 'Other'),
+              ])
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: GestureDetector(
+                    onTap: () => onSex(opt.$1),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: sex == opt.$1 ? Colors.black : Colors.white,
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                      child: Text(
+                        opt.$2,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: sex == opt.$1 ? Colors.white : Colors.black,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-          ]),
+            ],
+          ),
           const SizedBox(height: 20),
           // Activity level
           _FieldLabel('Activity level'),
@@ -739,34 +835,49 @@ class _BodyStep extends StatelessWidget {
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 14),
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                   decoration: BoxDecoration(
                     color: sel ? Colors.black : Colors.white,
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Row(children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(level.label,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              level.label,
                               style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: sel ? Colors.white : Colors.black)),
-                          Text(level.description,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: sel ? Colors.white : Colors.black,
+                              ),
+                            ),
+                            Text(
+                              level.description,
                               style: TextStyle(
-                                  fontSize: 12,
-                                  color: sel
-                                      ? Colors.white.withOpacity(0.6)
-                                      : Theme.of(context).colorScheme.onSurface.withOpacity(0.5))),
-                        ],
+                                fontSize: 12,
+                                color: sel
+                                    ? Colors.white.withOpacity(0.6)
+                                    : Theme.of(
+                                        context,
+                                      ).colorScheme.onSurface.withOpacity(0.5),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    if (sel)
-                      Icon(Icons.check_circle,
-                          color: Colors.white.withOpacity(0.8), size: 18),
-                  ]),
+                      if (sel)
+                        Icon(
+                          Icons.check_circle,
+                          color: Colors.white.withOpacity(0.8),
+                          size: 18,
+                        ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -785,11 +896,13 @@ class _EatingStep extends StatelessWidget {
   final List<String> sensitivities;
   final int mealsPerDay;
   final int flexDays;
+  final int flexDayOfWeek;
   final bool trackAlcohol;
   final void Function(String) onToggleDiet;
   final void Function(String) onToggleSens;
   final void Function(int) onMeals;
   final void Function(int) onFlex;
+  final void Function(int) onFlexDay;
   final void Function(bool) onAlcohol;
 
   const _EatingStep({
@@ -797,11 +910,13 @@ class _EatingStep extends StatelessWidget {
     required this.sensitivities,
     required this.mealsPerDay,
     required this.flexDays,
+    required this.flexDayOfWeek,
     required this.trackAlcohol,
     required this.onToggleDiet,
     required this.onToggleSens,
     required this.onMeals,
     required this.onFlex,
+    required this.onFlexDay,
     required this.onAlcohol,
   });
 
@@ -841,9 +956,10 @@ class _EatingStep extends StatelessWidget {
             children: _dietOptions.map((opt) {
               final sel = dietStyles.contains(opt.$1);
               return _MultiChip(
-                  label: opt.$2,
-                  selected: sel,
-                  onTap: () => onToggleDiet(opt.$1));
+                label: opt.$2,
+                selected: sel,
+                onTap: () => onToggleDiet(opt.$1),
+              );
             }).toList(),
           ),
           const SizedBox(height: 20),
@@ -856,7 +972,10 @@ class _EatingStep extends StatelessWidget {
             children: _sensOptions.map((s) {
               final sel = sensitivities.contains(s);
               return _MultiChip(
-                  label: s, selected: sel, onTap: () => onToggleSens(s));
+                label: s,
+                selected: sel,
+                onTap: () => onToggleSens(s),
+              );
             }).toList(),
           ),
           const SizedBox(height: 20),
@@ -880,80 +999,146 @@ class _EatingStep extends StatelessWidget {
                     color: sel ? Colors.black : Colors.white,
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Row(children: [
-                    Expanded(
+                  child: Row(
+                    children: [
+                      Expanded(
                         child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                          Text(opt.$2,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              opt.$2,
                               style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: sel ? Colors.white : Colors.black)),
-                          Text(opt.$3,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: sel ? Colors.white : Colors.black,
+                              ),
+                            ),
+                            Text(
+                              opt.$3,
                               style: TextStyle(
-                                  fontSize: 12,
-                                  color: sel
-                                      ? Colors.white.withOpacity(0.6)
-                                      : Theme.of(context).colorScheme.onSurface.withOpacity(0.5))),
-                        ])),
-                    if (sel)
-                      Icon(Icons.check_circle,
-                          color: Colors.white.withOpacity(0.8), size: 18),
-                  ]),
+                                fontSize: 12,
+                                color: sel
+                                    ? Colors.white.withOpacity(0.6)
+                                    : Theme.of(
+                                        context,
+                                      ).colorScheme.onSurface.withOpacity(0.5),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (sel)
+                        Icon(
+                          Icons.check_circle,
+                          color: Colors.white.withOpacity(0.8),
+                          size: 18,
+                        ),
+                    ],
+                  ),
                 ),
               ),
             );
           }),
           const SizedBox(height: 20),
-          // Flex days
-          _FieldLabel('Flex days (eat at maintenance)'),
+          // Flexible day preference
+          _FieldLabel('Would you like a planned flexibility day?'),
           const SizedBox(height: 10),
-          Row(
-            children: [0, 1, 2].map((n) {
+          Wrap(
+            spacing: 8,
+            children: [(0, 'None'), (1, 'Weekly'), (2, 'Monthly')].map((
+              option,
+            ) {
+              final n = option.$1;
               final sel = flexDays == n;
-              return Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: GestureDetector(
-                  onTap: () => onFlex(n),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: sel ? Colors.black : Colors.white,
-                      borderRadius: BorderRadius.circular(22),
-                    ),
-                    child: Text(
-                      n == 0 ? 'None' : '$n/week',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: sel ? Colors.white : Colors.black,
-                      ),
+              return GestureDetector(
+                onTap: () => onFlex(n),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: sel ? Colors.black : Colors.white,
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                  child: Text(
+                    option.$2,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: sel ? Colors.white : Colors.black,
                     ),
                   ),
                 ),
               );
             }).toList(),
           ),
+          if (flexDays == 1) ...[
+            const SizedBox(height: 12),
+            _FieldLabel('Which day works best?'),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children:
+                  const [
+                        (1, 'Mon'),
+                        (2, 'Tue'),
+                        (3, 'Wed'),
+                        (4, 'Thu'),
+                        (5, 'Fri'),
+                        (6, 'Sat'),
+                        (7, 'Sun'),
+                      ]
+                      .map(
+                        (day) => ChoiceChip(
+                          label: Text(day.$2),
+                          selected: flexDayOfWeek == day.$1,
+                          onSelected: (_) => onFlexDay(day.$1),
+                        ),
+                      )
+                      .toList(),
+            ),
+          ],
+          if (flexDays == 2) ...[
+            const SizedBox(height: 8),
+            Text(
+              'One day each month, whenever it works for you.',
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withOpacity(0.55),
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           // Track alcohol
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
             decoration: BoxDecoration(
-                color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(16)),
+              color: Theme.of(context).cardColor,
+              borderRadius: BorderRadius.circular(16),
+            ),
             child: SwitchListTile(
               contentPadding: EdgeInsets.zero,
               value: trackAlcohol,
               onChanged: onAlcohol,
               activeColor: Colors.black,
-              title: const Text('Track alcohol calories',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-              subtitle: Text('Adds a Drinks section to your food log',
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5))),
+              title: const Text(
+                'Track alcohol calories',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+              ),
+              subtitle: Text(
+                'Adds a Drinks section to your food log',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.5),
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 20),
@@ -1065,10 +1250,11 @@ class _MedsStepState extends State<_MedsStep> {
         ? widget.reminderTimes[index]
         : (index == 0 ? '08:00' : '20:00');
     final parts = timeStr.split(':');
-    final initial =
-        TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
-    final picked =
-        await showTimePicker(context: context, initialTime: initial);
+    final initial = TimeOfDay(
+      hour: int.parse(parts[0]),
+      minute: int.parse(parts[1]),
+    );
+    final picked = await showTimePicker(context: context, initialTime: initial);
     if (picked != null && mounted) {
       final str =
           '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
@@ -1087,13 +1273,11 @@ class _MedsStepState extends State<_MedsStep> {
     final filtered = _query.isEmpty
         ? _MedsStep._medOptions
         : _MedsStep._medOptions
-            .where((m) => m.toLowerCase().contains(_query))
-            .toList();
+              .where((m) => m.toLowerCase().contains(_query))
+              .toList();
     final filteredCustom = _query.isEmpty
         ? customMeds
-        : customMeds
-            .where((m) => m.toLowerCase().contains(_query))
-            .toList();
+        : customMeds.where((m) => m.toLowerCase().contains(_query)).toList();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -1103,62 +1287,65 @@ class _MedsStepState extends State<_MedsStep> {
           // ── Medications yes/no ──
           _FieldLabel('Are you currently taking any medications?'),
           const SizedBox(height: 10),
-          Row(children: [
-            Expanded(
-              child: GestureDetector(
-                onTap: () => widget.onTakesMeds(false),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  decoration: BoxDecoration(
-                    color:
-                        !widget.takesMeds ? Colors.black : Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Center(
-                    child: Text('No',
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => widget.onTakesMeds(false),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: !widget.takesMeds ? Colors.black : Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Center(
+                      child: Text(
+                        'No',
                         style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: !widget.takesMeds
-                                ? Colors.white
-                                : Colors.black)),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: !widget.takesMeds
+                              ? Colors.white
+                              : Colors.black,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: GestureDetector(
-                onTap: () => widget.onTakesMeds(true),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  decoration: BoxDecoration(
-                    color:
-                        widget.takesMeds ? Colors.black : Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Center(
-                    child: Text('Yes',
+              const SizedBox(width: 10),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => widget.onTakesMeds(true),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: widget.takesMeds ? Colors.black : Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Center(
+                      child: Text(
+                        'Yes',
                         style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: widget.takesMeds
-                                ? Colors.white
-                                : Colors.black)),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: widget.takesMeds ? Colors.white : Colors.black,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ]),
+            ],
+          ),
           if (widget.takesMeds) ...[
             const SizedBox(height: 14),
             // Search field
             TextField(
               controller: _searchCtrl,
-              onChanged: (v) =>
-                  setState(() => _query = v.trim().toLowerCase()),
+              onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
               decoration: InputDecoration(
                 hintText: 'Search medications...',
                 prefixIcon: const Icon(Icons.search, size: 18),
@@ -1169,7 +1356,9 @@ class _MedsStepState extends State<_MedsStep> {
                   borderSide: BorderSide.none,
                 ),
                 contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 12),
+                  horizontal: 16,
+                  vertical: 12,
+                ),
               ),
             ),
             const SizedBox(height: 10),
@@ -1180,34 +1369,47 @@ class _MedsStepState extends State<_MedsStep> {
                 ...filtered.map((med) {
                   final sel = widget.selectedMeds.contains(med);
                   return _MultiChip(
-                      label: med,
-                      selected: sel,
-                      onTap: () => widget.onToggleMed(med));
+                    label: med,
+                    selected: sel,
+                    onTap: () => widget.onToggleMed(med),
+                  );
                 }),
-                ...filteredCustom.map((m) => _MultiChip(
+                ...filteredCustom.map(
+                  (m) => _MultiChip(
                     label: m,
                     selected: true,
-                    onTap: () => widget.onToggleMed(m))),
+                    onTap: () => widget.onToggleMed(m),
+                  ),
+                ),
                 if (_query.isEmpty)
                   GestureDetector(
                     onTap: widget.onAddMedication,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 9),
-                      decoration: BoxDecoration(color: Theme.of(context).cardColor,
+                        horizontal: 14,
+                        vertical: 9,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).cardColor,
                         borderRadius: BorderRadius.circular(22),
                         border: Border.all(
-                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.2)),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withOpacity(0.2),
+                        ),
                       ),
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(Icons.add, size: 14),
                           SizedBox(width: 4),
-                          Text('Add',
-                              style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500)),
+                          Text(
+                            'Add',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -1218,19 +1420,26 @@ class _MedsStepState extends State<_MedsStep> {
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 2),
-                decoration: BoxDecoration(color: Theme.of(context).cardColor,
-                    borderRadius: BorderRadius.circular(16)),
+                  horizontal: 14,
+                  vertical: 2,
+                ),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).cardColor,
+                  borderRadius: BorderRadius.circular(16),
+                ),
                 child: SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   value: widget.reminders,
                   onChanged: widget.onReminders,
                   activeColor: Colors.black,
-                  title: const Text('Medication reminders',
-                      style: TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.w500)),
-                  subtitle: const Text('Get notified to take your meds',
-                      style: TextStyle(fontSize: 12)),
+                  title: const Text(
+                    'Medication reminders',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                  ),
+                  subtitle: const Text(
+                    'Get notified to take your meds',
+                    style: TextStyle(fontSize: 12),
+                  ),
                 ),
               ),
               if (widget.reminders) ...[
@@ -1249,12 +1458,13 @@ class _MedsStepState extends State<_MedsStep> {
                         Padding(
                           padding: const EdgeInsets.only(right: 8),
                           child: GestureDetector(
-                            onTap: () =>
-                                widget.onReminderFrequency(opt.$1),
+                            onTap: () => widget.onReminderFrequency(opt.$1),
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 10),
+                                horizontal: 16,
+                                vertical: 10,
+                              ),
                               decoration: BoxDecoration(
                                 color: widget.reminderFrequency == opt.$1
                                     ? Colors.black
@@ -1266,10 +1476,9 @@ class _MedsStepState extends State<_MedsStep> {
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w500,
-                                  color:
-                                      widget.reminderFrequency == opt.$1
-                                          ? Colors.white
-                                          : Colors.black,
+                                  color: widget.reminderFrequency == opt.$1
+                                      ? Colors.white
+                                      : Colors.black,
                                 ),
                               ),
                             ),
@@ -1291,8 +1500,11 @@ class _MedsStepState extends State<_MedsStep> {
                     child: Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 14),
-                      decoration: BoxDecoration(color: Theme.of(context).cardColor,
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).cardColor,
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: Row(
@@ -1304,22 +1516,32 @@ class _MedsStepState extends State<_MedsStep> {
                                 ? 'Morning'
                                 : 'Time',
                             style: TextStyle(
-                                fontSize: 13,
-                                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
+                              fontSize: 13,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurface.withOpacity(0.5),
+                            ),
                           ),
                           const Spacer(),
                           Text(
-                            _formatTime(widget.reminderTimes.isNotEmpty
-                                ? widget.reminderTimes[0]
-                                : '08:00'),
+                            _formatTime(
+                              widget.reminderTimes.isNotEmpty
+                                  ? widget.reminderTimes[0]
+                                  : '08:00',
+                            ),
                             style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                           const SizedBox(width: 4),
-                          Icon(Icons.chevron_right,
-                              size: 16,
-                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3)),
+                          Icon(
+                            Icons.chevron_right,
+                            size: 16,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withOpacity(0.3),
+                          ),
                         ],
                       ),
                     ),
@@ -1331,34 +1553,46 @@ class _MedsStepState extends State<_MedsStep> {
                       child: Container(
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
-                        decoration: BoxDecoration(color: Theme.of(context).cardColor,
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).cardColor,
                           borderRadius: BorderRadius.circular(14),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.access_time_outlined,
-                                size: 18),
+                            const Icon(Icons.access_time_outlined, size: 18),
                             const SizedBox(width: 10),
                             Text(
                               'Evening',
                               style: TextStyle(
-                                  fontSize: 13,
-                                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
+                                fontSize: 13,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurface.withOpacity(0.5),
+                              ),
                             ),
                             const Spacer(),
                             Text(
-                              _formatTime(widget.reminderTimes.length > 1
-                                  ? widget.reminderTimes[1]
-                                  : '20:00'),
+                              _formatTime(
+                                widget.reminderTimes.length > 1
+                                    ? widget.reminderTimes[1]
+                                    : '20:00',
+                              ),
                               style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                             const SizedBox(width: 4),
-                            Icon(Icons.chevron_right,
-                                size: 16,
-                                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3)),
+                            Icon(
+                              Icons.chevron_right,
+                              size: 16,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurface.withOpacity(0.3),
+                            ),
                           ],
                         ),
                       ),
@@ -1379,33 +1613,46 @@ class _MedsStepState extends State<_MedsStep> {
               ..._MedsStep._suppOptions.map((s) {
                 final sel = widget.supplements.contains(s);
                 return _MultiChip(
-                    label: s,
-                    selected: sel,
-                    onTap: () => widget.onToggleSupplement(s));
+                  label: s,
+                  selected: sel,
+                  onTap: () => widget.onToggleSupplement(s),
+                );
               }),
-              ...customSupps.map((s) => _MultiChip(
+              ...customSupps.map(
+                (s) => _MultiChip(
                   label: s,
                   selected: true,
-                  onTap: () => widget.onToggleSupplement(s))),
+                  onTap: () => widget.onToggleSupplement(s),
+                ),
+              ),
               GestureDetector(
                 onTap: widget.onAddSupplement,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 9),
-                  decoration: BoxDecoration(color: Theme.of(context).cardColor,
+                    horizontal: 14,
+                    vertical: 9,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).cardColor,
                     borderRadius: BorderRadius.circular(22),
-                    border:
-                        Border.all(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.2)),
+                    border: Border.all(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.2),
+                    ),
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.add, size: 14),
                       SizedBox(width: 4),
-                      Text('Add',
-                          style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500)),
+                      Text(
+                        'Add',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -1422,9 +1669,10 @@ class _MedsStepState extends State<_MedsStep> {
             children: _MedsStep._motivOptions.map((opt) {
               final sel = widget.motivation == opt.$1;
               return _MultiChip(
-                  label: opt.$2,
-                  selected: sel,
-                  onTap: () => widget.onMotivation(opt.$1));
+                label: opt.$2,
+                selected: sel,
+                onTap: () => widget.onMotivation(opt.$1),
+              );
             }).toList(),
           ),
           const SizedBox(height: 20),
@@ -1465,23 +1713,34 @@ class _TargetsStep extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary, borderRadius: BorderRadius.circular(20)),
+              color: Theme.of(context).colorScheme.primary,
+              borderRadius: BorderRadius.circular(20),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Daily calories',
-                    style: TextStyle(
-                        fontSize: 13, color: Colors.white.withOpacity(0.6))),
+                Text(
+                  'Daily calories',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.white.withOpacity(0.6),
+                  ),
+                ),
                 const SizedBox(height: 8),
                 _EditableNumber(
-                    controller: caloriesCtrl,
-                    suffix: 'cal',
-                    color: Colors.white,
-                    fontSize: 36),
+                  controller: caloriesCtrl,
+                  suffix: 'cal',
+                  color: Colors.white,
+                  fontSize: 36,
+                ),
                 const SizedBox(height: 4),
-                Text('Edit to customize',
-                    style: TextStyle(
-                        fontSize: 12, color: Colors.white.withOpacity(0.4))),
+                Text(
+                  'Edit to customize',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white.withOpacity(0.4),
+                  ),
+                ),
               ],
             ),
           ),
@@ -1490,22 +1749,28 @@ class _TargetsStep extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                  child: _MacroField(
-                      label: 'Protein',
-                      color: const Color(0xFFE8F5E9),
-                      controller: proteinCtrl)),
+                child: _MacroField(
+                  label: 'Protein',
+                  color: const Color(0xFFE8F5E9),
+                  controller: proteinCtrl,
+                ),
+              ),
               const SizedBox(width: 8),
               Expanded(
-                  child: _MacroField(
-                      label: 'Carbs',
-                      color: const Color(0xFFFFF8E1),
-                      controller: carbsCtrl)),
+                child: _MacroField(
+                  label: 'Carbs',
+                  color: const Color(0xFFFFF8E1),
+                  controller: carbsCtrl,
+                ),
+              ),
               const SizedBox(width: 8),
               Expanded(
-                  child: _MacroField(
-                      label: 'Fat',
-                      color: const Color(0xFFFCE4EC),
-                      controller: fatCtrl)),
+                child: _MacroField(
+                  label: 'Fat',
+                  color: const Color(0xFFFCE4EC),
+                  controller: fatCtrl,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 20),
@@ -1515,43 +1780,62 @@ class _TargetsStep extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-                color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(16)),
-            child: Row(children: [
-              const Icon(Icons.water_drop_outlined, size: 20),
-              const SizedBox(width: 12),
-              Text('$waterCups cups / day',
+              color: Theme.of(context).cardColor,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.water_drop_outlined, size: 20),
+                const SizedBox(width: 12),
+                Text(
+                  '$waterCups cups / day',
                   style: const TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.w500)),
-              const Spacer(),
-              _SmallStepper(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const Spacer(),
+                _SmallStepper(
                   icon: Icons.remove,
-                  onTap:
-                      waterCups > 4 ? () => onWater(waterCups - 1) : null),
-              const SizedBox(width: 8),
-              _SmallStepper(
+                  onTap: waterCups > 4 ? () => onWater(waterCups - 1) : null,
+                ),
+                const SizedBox(width: 8),
+                _SmallStepper(
                   icon: Icons.add,
-                  onTap:
-                      waterCups < 16 ? () => onWater(waterCups + 1) : null),
-            ]),
+                  onTap: waterCups < 16 ? () => onWater(waterCups + 1) : null,
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: Theme.of(context).cardColor,
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.08)),
-            ),
-            child: Row(children: [
-              const Icon(Icons.info_outline, size: 16),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Numbers are calculated from your stats. Edit anything — you know your body best.',
-                  style: TextStyle(
-                      fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
-                ),
+              border: Border.all(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withOpacity(0.08),
               ),
-            ]),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline, size: 16),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Numbers are calculated from your stats. Edit anything — you know your body best.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.6),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 20),
         ],
@@ -1569,9 +1853,10 @@ class _FieldLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(text,
-        style:
-            const TextStyle(fontSize: 13, fontWeight: FontWeight.w600));
+    return Text(
+      text,
+      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+    );
   }
 }
 
@@ -1590,8 +1875,10 @@ class _NumField extends StatelessWidget {
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
-      keyboardType:
-          TextInputType.numberWithOptions(decimal: decimal, signed: false),
+      keyboardType: TextInputType.numberWithOptions(
+        decimal: decimal,
+        signed: false,
+      ),
       inputFormatters: [
         FilteringTextInputFormatter.allow(RegExp(decimal ? r'[\d.]' : r'\d')),
       ],
@@ -1600,10 +1887,13 @@ class _NumField extends StatelessWidget {
         filled: true,
         fillColor: Theme.of(context).cardColor,
         border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide.none),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
       ),
     );
   }
@@ -1629,24 +1919,32 @@ class _Stepper extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-          color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(14)),
-      child: Row(children: [
-        _SmallStepper(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          _SmallStepper(
             icon: Icons.remove,
-            onTap: value > min ? () => onChanged(value - 1) : null),
-        Expanded(
-          child: Center(
-            child: Text(
-              '$value $label',
-              style:
-                  const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            onTap: value > min ? () => onChanged(value - 1) : null,
+          ),
+          Expanded(
+            child: Center(
+              child: Text(
+                '$value $label',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ),
-        ),
-        _SmallStepper(
+          _SmallStepper(
             icon: Icons.add,
-            onTap: value < max ? () => onChanged(value + 1) : null),
-      ]),
+            onTap: value < max ? () => onChanged(value + 1) : null,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1665,7 +1963,9 @@ class _SmallStepper extends StatelessWidget {
         width: 30,
         height: 30,
         decoration: BoxDecoration(
-          color: onTap != null ? Colors.black : Theme.of(context).colorScheme.onSurface.withOpacity(0.1),
+          color: onTap != null
+              ? Colors.black
+              : Theme.of(context).colorScheme.onSurface.withOpacity(0.1),
           shape: BoxShape.circle,
         ),
         child: Icon(icon, size: 16, color: Colors.white),
@@ -1679,8 +1979,11 @@ class _MultiChip extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
-  const _MultiChip(
-      {required this.label, required this.selected, required this.onTap});
+  const _MultiChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1721,29 +2024,40 @@ class _MacroField extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration:
-          BoxDecoration(color: color, borderRadius: BorderRadius.circular(16)),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6))),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+            ),
+          ),
           const SizedBox(height: 6),
           TextField(
             controller: controller,
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            style:
-                const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             decoration: InputDecoration(
               isDense: true,
               contentPadding: EdgeInsets.zero,
               border: InputBorder.none,
-              suffix: Text('g',
-                  style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.54))),
+              suffix: Text(
+                'g',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.54),
+                ),
+              ),
             ),
           ),
         ],
@@ -1777,9 +2091,10 @@ class _EditableNumber extends StatelessWidget {
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             style: TextStyle(
-                fontSize: fontSize,
-                fontWeight: FontWeight.bold,
-                color: color),
+              fontSize: fontSize,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
             decoration: const InputDecoration(
               isDense: true,
               contentPadding: EdgeInsets.zero,
@@ -1790,9 +2105,10 @@ class _EditableNumber extends StatelessWidget {
         Text(
           ' $suffix',
           style: TextStyle(
-              fontSize: 18,
-              color: color.withOpacity(0.6),
-              fontWeight: FontWeight.w500),
+            fontSize: 18,
+            color: color.withOpacity(0.6),
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ],
     );

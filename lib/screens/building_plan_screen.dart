@@ -2,23 +2,19 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/user_onboarding_data.dart';
 import 'create_account_screen.dart';
+import '../widgets/kloudy_mark.dart';
 
 class BuildingPlanScreen extends StatefulWidget {
   final UserOnboardingData onboardingData;
 
-  const BuildingPlanScreen({
-    super.key,
-    required this.onboardingData,
-  });
+  const BuildingPlanScreen({super.key, required this.onboardingData});
 
   @override
-  State<BuildingPlanScreen> createState() =>
-      _BuildingPlanScreenState();
+  State<BuildingPlanScreen> createState() => _BuildingPlanScreenState();
 }
 
 class _BuildingPlanScreenState extends State<BuildingPlanScreen>
     with SingleTickerProviderStateMixin {
-
   int currentStep = 0;
 
   late AnimationController _floatController;
@@ -42,14 +38,8 @@ class _BuildingPlanScreenState extends State<BuildingPlanScreen>
       vsync: this,
     )..repeat(reverse: true);
 
-    _floatAnimation = Tween<double>(
-      begin: -8,
-      end: 8,
-    ).animate(
-      CurvedAnimation(
-        parent: _floatController,
-        curve: Curves.easeInOut,
-      ),
+    _floatAnimation = Tween<double>(begin: -8, end: 8).animate(
+      CurvedAnimation(parent: _floatController, curve: Curves.easeInOut),
     );
 
     startAnimation();
@@ -77,9 +67,8 @@ class _BuildingPlanScreenState extends State<BuildingPlanScreen>
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) => CreateAccountScreen(
-          onboardingData: widget.onboardingData,
-        ),
+        builder: (_) =>
+            CreateAccountScreen(onboardingData: widget.onboardingData),
       ),
     );
   }
@@ -94,7 +83,6 @@ class _BuildingPlanScreenState extends State<BuildingPlanScreen>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-
               const SizedBox(height: 16),
 
               // Floating mascot
@@ -106,11 +94,7 @@ class _BuildingPlanScreenState extends State<BuildingPlanScreen>
                     child: child,
                   );
                 },
-                child: Image.asset(
-                  'assets/images/kloudy_mascot.png',
-                  height: 140,
-                  fit: BoxFit.contain,
-                ),
+                child: const KloudyMark(size: 140),
               ),
 
               const SizedBox(height: 28),
@@ -132,7 +116,9 @@ class _BuildingPlanScreenState extends State<BuildingPlanScreen>
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 18,
-                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.54),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.54),
                   height: 1.4,
                 ),
               ),
@@ -141,7 +127,8 @@ class _BuildingPlanScreenState extends State<BuildingPlanScreen>
 
               Container(
                 padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(color: Theme.of(context).cardColor,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).cardColor,
                   borderRadius: BorderRadius.circular(24),
                 ),
                 child: Column(
@@ -153,38 +140,41 @@ class _BuildingPlanScreenState extends State<BuildingPlanScreen>
                       padding: const EdgeInsets.only(bottom: 18),
                       child: Row(
                         children: [
-
                           AnimatedSwitcher(
                             duration: const Duration(milliseconds: 300),
                             child: completed
                                 ? Icon(
                                     Icons.check_circle,
                                     key: ValueKey('done'),
-                                    color: Theme.of(context).colorScheme.onSurface,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurface,
                                     size: 24,
                                   )
                                 : isActive
-                                    ? SizedBox(
-                                        key: ValueKey('loading'),
-                                        width: 24,
-                                        height: 24,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Theme.of(context).colorScheme.onSurface,
-                                        ),
-                                      )
-                                    : Container(
-                                        key: const ValueKey('pending'),
-                                        width: 24,
-                                        height: 24,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: Colors.black26,
-                                            width: 1.5,
-                                          ),
-                                        ),
+                                ? SizedBox(
+                                    key: ValueKey('loading'),
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurface,
+                                    ),
+                                  )
+                                : Container(
+                                    key: const ValueKey('pending'),
+                                    width: 24,
+                                    height: 24,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Colors.black26,
+                                        width: 1.5,
                                       ),
+                                    ),
+                                  ),
                           ),
 
                           const SizedBox(width: 14),
@@ -196,7 +186,9 @@ class _BuildingPlanScreenState extends State<BuildingPlanScreen>
                                 fontSize: 17,
                                 color: completed || isActive
                                     ? Colors.black
-                                    : Theme.of(context).colorScheme.onSurface.withOpacity(0.38),
+                                    : Theme.of(
+                                        context,
+                                      ).colorScheme.onSurface.withOpacity(0.38),
                                 fontWeight: completed
                                     ? FontWeight.w600
                                     : FontWeight.normal,

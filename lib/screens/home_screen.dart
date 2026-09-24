@@ -1,16 +1,16 @@
-import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import '../config/api_config.dart';
 import '../services/ai_service.dart';
 import '../services/plaid_service.dart';
 import '../services/supabase_service.dart';
+import '../theme/kloudy_theme.dart';
+import '../widgets/kloudy_mark.dart';
 import 'kloudy_chat_screen.dart';
 
 // Semantic colors — consistent across all themes
-const Color kGreen = Color(0xFF4CD964);
-const Color kBlue  = Color(0xFF5B8FD4);
+const Color kGreen = kKloudyCyan;
+const Color kBlue = kKloudyBlue;
 
 class HomeScreen extends StatelessWidget {
   final String userName;
@@ -58,76 +58,39 @@ class _HomeTabState extends State<_HomeTab> {
   List<Map<String, dynamic>> _tasks = [];
   String? _selectedMood;
   bool _loading = true;
-  bool _showMoodPicker = false;
   Map<String, dynamic>? _sleepData;
+  Map<String, dynamic>? _nutritionData;
   String? _aiMessage;
-  bool _aiMessageLoading = true;
   final TextEditingController _chatController = TextEditingController();
   final TextEditingController _newTaskController = TextEditingController();
 
   // Overview card data
-  int _calorieGoal = 0;
-  int _caloriesToday = 0;
   double _spendingBudget = 0;
   double _monthlyIncome = 0;
   double _actualSpent = 0;
   bool _plaidConnected = false;
 
   static const List<Map<String, String>> _moods = [
-    {'label': 'Happy',       'emoji': '😊'},
-    {'label': 'Excited',     'emoji': '🤩'},
+    {'label': 'Happy', 'emoji': '😊'},
+    {'label': 'Excited', 'emoji': '🤩'},
     {'label': 'Celebrating', 'emoji': '🥳'},
-    {'label': 'Okay',        'emoji': '😐'},
-    {'label': 'Meh',         'emoji': '😑'},
-    {'label': 'Thinking',    'emoji': '🤔'},
-    {'label': 'Tired',       'emoji': '😴'},
-    {'label': 'Worried',     'emoji': '😟'},
-    {'label': 'Sad',         'emoji': '😢'},
-    {'label': 'Angry',       'emoji': '😠'},
+    {'label': 'Okay', 'emoji': '😐'},
+    {'label': 'Meh', 'emoji': '😑'},
+    {'label': 'Thinking', 'emoji': '🤔'},
+    {'label': 'Tired', 'emoji': '😴'},
+    {'label': 'Worried', 'emoji': '😟'},
+    {'label': 'Sad', 'emoji': '😢'},
+    {'label': 'Angry', 'emoji': '😠'},
+    {'label': 'Anxious', 'emoji': '😰'},
+    {'label': 'Mourning', 'emoji': '😢'},
+    {'label': 'Lonely', 'emoji': '😞'},
+    {'label': 'Peaceful', 'emoji': '😌'},
+    {'label': 'Overwhelmed', 'emoji': '🤯'},
     // Mindset tab labels
-    {'label': 'Low',         'emoji': '😔'},
-    {'label': 'Good',        'emoji': '🙂'},
-    {'label': 'Great',       'emoji': '😄'},
+    {'label': 'Low', 'emoji': '😔'},
+    {'label': 'Good', 'emoji': '🙂'},
+    {'label': 'Great', 'emoji': '😄'},
   ];
-
-  List<Map<String, dynamic>> get _suggestions {
-    final hour = DateTime.now().hour;
-    final isWeekend = DateTime.now().weekday >= 6;
-    final suggestions = <Map<String, dynamic>>[];
-
-    if (hour >= 5 && hour < 12) {
-      suggestions.add({'label': 'What should I have for breakfast?', 'emoji': '🍳', 'color': const Color(0xFFF5ECD6)});
-      if (_profile?['lose_weight'] == true || _profile?['build_muscle'] == true)
-        suggestions.add({'label': 'Best morning workout for today', 'emoji': '🏋️', 'color': const Color(0xFFE4EDDF)});
-      if (_profile?['improve_sleep'] == true)
-        suggestions.add({'label': 'How can I wake up more energized?', 'emoji': '☀️', 'color': const Color(0xFFF2EAE0)});
-      suggestions.add({'label': 'Help me plan my day', 'emoji': '📋', 'color': const Color(0xFFDDE6EE)});
-    } else if (hour >= 12 && hour < 17) {
-      suggestions.add({'label': 'Quick healthy lunch ideas', 'emoji': '🥗', 'color': const Color(0xFFE4EDDF)});
-      suggestions.add({'label': "I'm tired — how do I push through?", 'emoji': '⚡', 'color': const Color(0xFFF2EAE0)});
-      if (_profile?['save_money'] == true)
-        suggestions.add({'label': 'How am I doing on my budget this week?', 'emoji': '💰', 'color': const Color(0xFFE4EDDF)});
-      suggestions.add({'label': 'Find deals near me', 'emoji': '🛒', 'color': const Color(0xFFDDE6EE)});
-    } else if (hour >= 17 && hour < 22) {
-      suggestions.add({'label': 'What should I cook for dinner?', 'emoji': '🍽️', 'color': const Color(0xFFF0E4E4)});
-      if (_profile?['improve_sleep'] == true)
-        suggestions.add({'label': 'Best wind-down routine for better sleep', 'emoji': '🌙', 'color': const Color(0xFFE3E1EE)});
-      if (_profile?['save_money'] == true)
-        suggestions.add({'label': 'Ways to save money this week', 'emoji': '💸', 'color': const Color(0xFFE4EDDF)});
-      suggestions.add({'label': 'Review my day with me', 'emoji': '✨', 'color': const Color(0xFFEBE0EF)});
-    } else {
-      suggestions.add({'label': 'Help me wind down for sleep', 'emoji': '😴', 'color': const Color(0xFFE3E1EE)});
-      suggestions.add({'label': 'Relaxation techniques that actually work', 'emoji': '🌙', 'color': const Color(0xFFDDE6EE)});
-      suggestions.add({'label': 'Did I do well today?', 'emoji': '🌟', 'color': const Color(0xFFF2EAE0)});
-    }
-
-    if (_profile?['improve_mental_health'] == true)
-      suggestions.add({'label': 'Find therapists near me', 'emoji': '🧑‍⚕️', 'color': const Color(0xFFEBE0EF)});
-    if (isWeekend)
-      suggestions.add({'label': 'Fun healthy things to do this weekend', 'emoji': '🌳', 'color': const Color(0xFFE0EAE2)});
-
-    return suggestions.take(5).toList();
-  }
 
   @override
   void initState() {
@@ -172,43 +135,40 @@ class _HomeTabState extends State<_HomeTab> {
         SupabaseService.fetchProfile(),
         _fetchTasks(),
         SupabaseService.fetchSleepData(),
-        SupabaseService.fetchNutritionData(),
         SupabaseService.fetchFinanceData(),
+        SupabaseService.fetchNutritionData(),
       ]);
 
       final profile = results[0] as Map<String, dynamic>?;
       final tasks = results[1] as List<Map<String, dynamic>>;
       final sleepData = results[2] as Map<String, dynamic>?;
-      final nutrition = results[3] as Map<String, dynamic>?;
-      final finance = results[4] as Map<String, dynamic>?;
-
-      // Calories
-      final today = DateTime.now().toIso8601String().split('T').first;
-      final foodLogs = nutrition?['food_logs'] as Map<String, dynamic>?;
-      final todayEntries = foodLogs?[today] as List<dynamic>? ?? [];
-      final calsToday = todayEntries.fold<int>(
-          0, (s, e) => s + ((e as Map)['calories'] as num? ?? 0).toInt());
-      final nutritionProfile = nutrition?['profile'] as Map<String, dynamic>?;
-      final calorieGoal =
-          (nutritionProfile?['calorie_goal'] as num?)?.toInt() ?? 0;
+      final finance = results[3] as Map<String, dynamic>?;
+      final nutrition = results[4] as Map<String, dynamic>?;
 
       // Spending budget
-      final monthlyIncome =
-          (finance?['monthly_income'] as num? ?? 0).toDouble();
+      final monthlyIncome = (finance?['monthly_income'] as num? ?? 0)
+          .toDouble();
       final bills = finance?['bills'] as List<dynamic>? ?? [];
       final extras = finance?['extras'] as List<dynamic>? ?? [];
       final goals = finance?['goals'] as List<dynamic>? ?? [];
       final totalBills = bills.fold<double>(
-          0, (s, b) => s + ((b as Map)['monthly_amount'] as num? ?? 0).toDouble());
+        0,
+        (s, b) => s + ((b as Map)['monthly_amount'] as num? ?? 0).toDouble(),
+      );
       final totalExtras = extras.fold<double>(
-          0, (s, e) => s + ((e as Map)['estimated_monthly_amount'] as num? ?? 0).toDouble());
+        0,
+        (s, e) =>
+            s +
+            ((e as Map)['estimated_monthly_amount'] as num? ?? 0).toDouble(),
+      );
       final totalGoals = goals.fold<double>(0, (s, g) {
         final target = ((g as Map)['target_amount'] as num? ?? 0).toDouble();
         final current = (g['current_amount'] as num? ?? 0).toDouble();
         final months = (g['target_months'] as int?) ?? 1;
         return s + (target - current) / months;
       });
-      final spendingBudget = monthlyIncome - totalBills - totalExtras - totalGoals;
+      final spendingBudget =
+          monthlyIncome - totalBills - totalExtras - totalGoals;
 
       if (mounted) {
         setState(() {
@@ -216,8 +176,7 @@ class _HomeTabState extends State<_HomeTab> {
           _tasks = tasks;
           _selectedMood = profile?['current_mood'] as String?;
           _sleepData = sleepData;
-          _calorieGoal = calorieGoal;
-          _caloriesToday = calsToday;
+          _nutritionData = nutrition;
           _spendingBudget = spendingBudget;
           _monthlyIncome = monthlyIncome;
           _loading = false;
@@ -233,14 +192,35 @@ class _HomeTabState extends State<_HomeTab> {
   Future<void> _fetchAiInsight() async {
     try {
       final context = await SupabaseService.buildAiContext();
-      final message = await AiService.generateInsight(
-        apiKey: kAnthropicApiKey,
-        userContext: context,
-      );
-      if (mounted) setState(() { _aiMessage = message; _aiMessageLoading = false; });
-    } catch (_) {
-      if (mounted) setState(() => _aiMessageLoading = false);
+      final message = await AiService.generateInsight(userContext: context);
+      if (mounted)
+        setState(() {
+          _aiMessage = message;
+        });
+    } catch (_) {}
+  }
+
+  int get _caloriesRemaining {
+    final today = DateTime.now().toIso8601String().split('T').first;
+    final logs = _nutritionData?['food_logs'] as Map<String, dynamic>? ?? {};
+    final entries = logs[today] as List<dynamic>? ?? [];
+    final consumed = entries.fold<int>(
+      0,
+      (sum, entry) => sum + ((entry as Map)['calories'] as num? ?? 0).round(),
+    );
+    final profile = _nutritionData?['profile'] as Map<String, dynamic>?;
+    final target = profile?['calorie_goal'] as int? ?? 0;
+    return (target - consumed).clamp(0, target).toInt();
+  }
+
+  double? get _todaySleepHours {
+    final today = DateTime.now().toIso8601String().split('T').first;
+    final logs = _sleepData?['logs'] as List<dynamic>? ?? [];
+    for (final log in logs) {
+      final row = log as Map;
+      if (row['date'] == today) return (row['hours'] as num?)?.toDouble();
     }
+    return null;
   }
 
   Future<List<Map<String, dynamic>>> _fetchTasks() async {
@@ -312,21 +292,16 @@ class _HomeTabState extends State<_HomeTab> {
     final existing = await SupabaseService.fetchMindsetData() ?? {};
     final rawLog = (existing['mood_log'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();
-    final todayEntry =
-        rawLog.where((e) => e['date'] == today).firstOrNull;
+    final todayEntry = rawLog.where((e) => e['date'] == today).firstOrNull;
     final energy = (todayEntry?['energy'] as int?) ?? 3;
     rawLog.removeWhere((e) => e['date'] == today);
     rawLog.add({'date': today, 'mood': scale, 'energy': energy});
-    await SupabaseService.saveMindsetData({
-      ...existing,
-      'mood_log': rawLog,
-    });
+    await SupabaseService.saveMindsetData({...existing, 'mood_log': rawLog});
   }
 
   Future<void> _selectMood(String mood) async {
     setState(() {
       _selectedMood = mood;
-      _showMoodPicker = false;
     });
     final scale = _moodToMindsetScale(mood);
     await Future.wait([
@@ -335,14 +310,43 @@ class _HomeTabState extends State<_HomeTab> {
     ]);
   }
 
-  String _aiInsight() {
-    if (_profile == null) return 'Setting up your personalized plan...';
-    final name = widget.userName.split(' ').first;
-    if (_profile!['lose_weight'] == true) return 'You\'re on track with your weight goal, $name. Keep it up! 💪';
-    if (_profile!['save_money'] == true) return 'You\'re building great savings habits this week, $name! 💰';
-    if (_profile!['improve_mental_health'] == true) return 'You\'ve been consistent with your mental health goals, $name 🧠';
-    if (_profile!['improve_sleep'] == true) return 'Better sleep starts tonight — you\'ve got this, $name 🌙';
-    return 'Your plan is ready, $name. Let\'s make today count! ✨';
+  void _addMood() async {
+    final extra = _moods
+        .where(
+          (m) => const {
+            'Tired',
+            'Worried',
+            'Sad',
+            'Angry',
+            'Anxious',
+            'Mourning',
+            'Lonely',
+            'Peaceful',
+            'Overwhelmed',
+            'Excited',
+          }.contains(m['label']),
+        )
+        .toList();
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: extra
+              .map(
+                (m) => ListTile(
+                  leading: Text(
+                    m['emoji']!,
+                    style: const TextStyle(fontSize: 24),
+                  ),
+                  title: Text(m['label']!),
+                  onTap: () => Navigator.pop(ctx, m['label']),
+                ),
+              )
+              .toList(),
+        ),
+      ),
+    );
+    if (selected != null) await _selectMood(selected);
   }
 
   String _greeting() {
@@ -352,13 +356,6 @@ class _HomeTabState extends State<_HomeTab> {
     return 'Good evening,';
   }
 
-  Widget _greetingEmoji() {
-    final h = DateTime.now().hour;
-    if (h < 12) return const Text('☀️', style: TextStyle(fontSize: 26));
-    if (h < 17) return const Text('🌤️', style: TextStyle(fontSize: 26));
-    return const Text('🌙', style: TextStyle(fontSize: 26));
-  }
-
   int get _completedTasks => _tasks.where((t) => t['completed'] == true).length;
 
   void _openMenu() {
@@ -366,10 +363,8 @@ class _HomeTabState extends State<_HomeTab> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _KloudyMenuSheet(
-        displayName: widget.userName,
-        profile: _profile,
-      ),
+      builder: (_) =>
+          _KloudyMenuSheet(displayName: widget.userName, profile: _profile),
     );
   }
 
@@ -386,7 +381,8 @@ class _HomeTabState extends State<_HomeTab> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => KloudyChatScreen(initialMessage: text.isEmpty ? null : text),
+        builder: (_) =>
+            KloudyChatScreen(initialMessage: text.isEmpty ? null : text),
       ),
     );
   }
@@ -402,474 +398,700 @@ class _HomeTabState extends State<_HomeTab> {
 
   @override
   Widget build(BuildContext context) {
-    final th = Theme.of(context);
-    final card = th.cardColor;
-    final onSurface = th.colorScheme.onSurface;
-    final primary = th.colorScheme.primary;
+    return _buildNewHome(context);
+  }
+
+  Widget _buildNewHome(BuildContext context) {
+    final theme = Theme.of(context);
+    final ink = theme.colorScheme.onSurface;
+    final muted = kDimText;
+    final firstName = widget.userName.trim().split(' ').first;
 
     if (_loading) {
-      return Center(child: CircularProgressIndicator(color: primary));
+      return const Center(child: CircularProgressIndicator());
     }
 
     return SafeArea(
       child: RefreshIndicator(
         onRefresh: _load,
-        color: primary,
-        child: SingleChildScrollView(
+        color: kKloudyBlue,
+        child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-
-              // ── Top bar ──
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                child: Row(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+          children: [
+            Row(
+              children: [
+                const KloudyMark(size: 42),
+                const SizedBox(width: 11),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    GestureDetector(
-                      onTap: _openMenu,
-                      child: Container(
-                        width: 40, height: 40,
-                        decoration: BoxDecoration(
-                          color: card,
-                          shape: BoxShape.circle,
-                          boxShadow: [BoxShadow(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.06), blurRadius: 8)],
-                        ),
-                        child: Icon(Icons.menu, size: 20, color: onSurface),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
                     Text(
-                      'Kloudy',
+                      'KLOUDY',
                       style: TextStyle(
-                        fontSize: 20,
+                        color: ink,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                    Text(
+                      'YOUR LIFE, IN SYNC',
+                      style: TextStyle(
+                        color: muted,
+                        fontSize: 9,
                         fontWeight: FontWeight.w700,
-                        letterSpacing: -0.3,
-                        color: onSurface,
-                      ),
-                    ),
-                    const Spacer(),
-                    GestureDetector(
-                      onTap: _openNotifications,
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          Container(
-                            width: 40, height: 40,
-                            decoration: BoxDecoration(
-                              color: card,
-                              shape: BoxShape.circle,
-                              boxShadow: [BoxShadow(color: onSurface.withOpacity(0.06), blurRadius: 8)],
-                            ),
-                            child: Icon(Icons.notifications_outlined, size: 20, color: onSurface),
-                          ),
-                          if (_notifications.isNotEmpty)
-                            Positioned(
-                              top: -2, right: -2,
-                              child: Container(
-                                padding: const EdgeInsets.all(3),
-                                decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                                child: Text(
-                                  '${_notifications.length}',
-                                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Colors.white),
-                                ),
-                              ),
-                            ),
-                        ],
+                        letterSpacing: 1.1,
                       ),
                     ),
                   ],
                 ),
+                const Spacer(),
+                _roundAction(
+                  Icons.tune_rounded,
+                  'Profile and settings',
+                  _openMenu,
+                ),
+                const SizedBox(width: 9),
+                _notificationAction(),
+              ],
+            ),
+            const SizedBox(height: 28),
+            Text(
+              _greeting().toUpperCase(),
+              style: TextStyle(
+                color: muted,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.5,
               ),
-
-              // ── Greeting + mascot ──
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 24, 16, 0),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+            ),
+            const SizedBox(height: 5),
+            Text(
+              firstName,
+              style: TextStyle(
+                color: ink,
+                fontSize: 35,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -1.3,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              'Let’s make today feel a little more manageable.',
+              style: TextStyle(color: muted, fontSize: 14, height: 1.45),
+            ),
+            const SizedBox(height: 20),
+            _buildKloudyHero(context),
+            const SizedBox(height: 27),
+            _sectionTitle('Your life, at a glance', 'Small steps count.'),
+            const SizedBox(height: 13),
+            Row(
+              children: [
+                Expanded(
+                  child: _snapshotCard(
+                    Icons.check_circle_outline_rounded,
+                    _caloriesRemaining > 0
+                        ? '🔥 $_caloriesRemaining'
+                        : 'Set up',
+                    'calories left',
+                    const Color(0xFFE8E8FF),
+                    onTap: () => widget.onNavigate(2),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _snapshotCard(
+                    Icons.account_balance_wallet_outlined,
+                    _monthlyIncome > 0
+                        ? '\$${(_spendingBudget - (_plaidConnected ? _actualSpent : 0)).toStringAsFixed(0)}'
+                        : 'Set up',
+                    'left to spend',
+                    const Color(0xFFE2F4F0),
+                    onTap: () => widget.onNavigate(3),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _snapshotCard(
+                    Icons.nightlight_outlined,
+                    _todaySleepHours == null
+                        ? 'Log'
+                        : '${_todaySleepHours!.toStringAsFixed(1)}h',
+                    _todaySleepHours == null ? 'last night' : 'last night',
+                    _todaySleepHours == null
+                        ? const Color(0xFFFFF0DA)
+                        : _todaySleepHours! >= 7
+                        ? const Color(0xFFDDF2E3)
+                        : _todaySleepHours! < 5
+                        ? const Color(0xFFF9DEDE)
+                        : const Color(0xFFF4EDDB),
+                    onTap: _showSleepLogSheet,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            _buildMoodCheckIn(),
+            const SizedBox(height: 28),
+            _sectionTitle(
+              'Pick up where you left off',
+              'Everything you’re learning, together.',
+            ),
+            const SizedBox(height: 13),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final tileWidth = (constraints.maxWidth - 10) / 2;
+                return Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _greeting(),
-                            style: TextStyle(fontSize: 20, color: onSurface.withOpacity(0.54)),
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Text(
-                                widget.userName.split(' ').first,
-                                style: TextStyle(
-                                  fontSize: 36,
-                                  fontWeight: FontWeight.w800,
-                                  height: 1.1,
-                                  color: onSurface,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              _greetingEmoji(),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: card,
-                              borderRadius: BorderRadius.circular(14),
-                              boxShadow: [BoxShadow(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.05), blurRadius: 10)],
-                            ),
-                            child: Row(
-                              children: [
-                                const Text('✨', style: TextStyle(fontSize: 14)),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: _aiMessageLoading
-                                      ? Row(children: [
-                                          SizedBox(
-                                            width: 12, height: 12,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 1.5,
-                                              color: onSurface.withOpacity(0.3),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text('Checking in...', style: TextStyle(fontSize: 13, color: onSurface.withOpacity(0.4))),
-                                        ])
-                                      : Text(
-                                          _aiMessage ?? _aiInsight(),
-                                          style: TextStyle(fontSize: 13, height: 1.4, color: onSurface),
-                                        ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
+                    _lifeTile(
+                      width: tileWidth,
+                      icon: Icons.favorite_border_rounded,
+                      title: 'Health',
+                      detail: 'Care, sleep & how you feel',
+                      tint: const Color(0xFFF7E9EE),
+                      onTap: () => widget.onNavigate(1),
                     ),
-                    SizedBox(
-                      width: 140, height: 170,
-                      child: Image.asset('assets/images/kloudy_mascot.png', fit: BoxFit.contain),
+                    _lifeTile(
+                      width: tileWidth,
+                      icon: Icons.restaurant_outlined,
+                      title: 'Food',
+                      detail: 'Meals that work for you',
+                      tint: const Color(0xFFFFF0DA),
+                      onTap: () => widget.onNavigate(2),
+                    ),
+                    _lifeTile(
+                      width: tileWidth,
+                      icon: Icons.payments_outlined,
+                      title: 'Money',
+                      detail: 'Budgeting, bills & goals',
+                      tint: const Color(0xFFE2F4F0),
+                      onTap: () => widget.onNavigate(3),
+                    ),
+                    _lifeTile(
+                      width: tileWidth,
+                      icon: Icons.spa_outlined,
+                      title: 'Mindset',
+                      detail: 'Routines & how you’re doing',
+                      tint: const Color(0xFFEAE8FF),
+                      onTap: () => widget.onNavigate(4),
                     ),
                   ],
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // ── Kloudy's Overview ──
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: card,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [BoxShadow(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.05), blurRadius: 12)],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Text('✨', style: TextStyle(fontSize: 16)),
-                          const SizedBox(width: 8),
-                          Text(
-                            "Kloudy's Overview",
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: onSurface),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      Row(
-                        children: [
-                          Expanded(child: _OverviewCard(
-                            icon: '🍽️',
-                            iconBg: const Color(0xFFF5E8C8),
-                            value: _calorieGoal > 0
-                                ? '${(_calorieGoal - _caloriesToday).clamp(0, _calorieGoal)}'
-                                : '—',
-                            label: 'calories left',
-                            progress: _calorieGoal > 0
-                                ? ((_calorieGoal - _caloriesToday) / _calorieGoal).clamp(0.0, 1.0)
-                                : null,
-                            progressColor: kGreen,
-                            onTap: () => widget.onNavigate(2),
-                          )),
-                          const SizedBox(width: 10),
-                          Expanded(child: _OverviewCard(
-                            icon: '💳',
-                            iconBg: const Color(0xFFDDE6EE),
-                            value: _monthlyIncome > 0
-                                ? '\$${(_spendingBudget - (_plaidConnected ? _actualSpent : 0)).toStringAsFixed(0)}'
-                                : '—',
-                            label: 'left to spend',
-                            progress: _monthlyIncome > 0
-                                ? ((_spendingBudget - (_plaidConnected ? _actualSpent : 0)) / _monthlyIncome).clamp(0.0, 1.0)
-                                : null,
-                            progressColor: kBlue,
-                            onTap: () => widget.onNavigate(3),
-                          )),
-                          const SizedBox(width: 10),
-                          Expanded(child: _OverviewCard(
-                            icon: _moods.firstWhere(
-                              (m) => m['label'] == _selectedMood,
-                              orElse: () => {'emoji': '🫧'},
-                            )['emoji']!,
-                            iconBg: const Color(0xFFEBE0EF),
-                            value: _selectedMood ?? 'Set mood',
-                            label: 'current mood',
-                            progress: null,
-                            onTap: () => setState(() => _showMoodPicker = !_showMoodPicker),
-                          )),
-                        ],
-                      ),
-
-                      if (_showMoodPicker) ...[
-                        const SizedBox(height: 14),
-                        Divider(color: onSurface.withOpacity(0.1), height: 1),
-                        const SizedBox(height: 12),
-                        Text(
-                          'How are you feeling?',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: onSurface.withOpacity(0.54)),
-                        ),
-                        const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 10,
-                          runSpacing: 10,
-                          children: _moods.map((mood) {
-                            final selected = _selectedMood == mood['label'];
-                            return GestureDetector(
-                              onTap: () => _selectMood(mood['label']!),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 180),
-                                width: 52, height: 52,
-                                decoration: BoxDecoration(
-                                  color: selected ? primary : onSurface.withOpacity(0.06),
-                                  shape: BoxShape.circle,
-                                  border: selected ? Border.all(color: primary, width: 2) : null,
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    mood['emoji']!,
-                                    style: const TextStyle(fontSize: 24),
-                                  ),
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ],
-                    ],
+                );
+              },
+            ),
+            const SizedBox(height: 25),
+            Row(
+              children: [
+                Expanded(
+                  child: _sectionTitle(
+                    'Today’s plan',
+                    _tasks.isEmpty
+                        ? 'Start with one thing.'
+                        : '$_completedTasks of ${_tasks.length} complete',
                   ),
                 ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // ── Sleep Streak ──
-              _SleepStreakCard(sleepData: _sleepData, onLog: _showSleepLogSheet),
-
-              const SizedBox(height: 20),
-
-              // ── Ask Kloudy ──
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: card,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [BoxShadow(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.05), blurRadius: 12)],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text('Ask Kloudy', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: onSurface)),
-                          const SizedBox(width: 6),
-                          const Text('✨', style: TextStyle(fontSize: 14)),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: onSurface.withOpacity(0.06),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Row(
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.only(left: 14),
-                              child: Icon(Icons.search, color: onSurface.withOpacity(0.38), size: 20),
-                            ),
-                            Expanded(
-                              child: TextField(
-                                controller: _chatController,
-                                style: TextStyle(color: onSurface),
-                                textInputAction: TextInputAction.send,
-                                decoration: InputDecoration(
-                                  hintText: 'Ask anything...',
-                                  hintStyle: TextStyle(color: onSurface.withOpacity(0.38), fontSize: 14),
-                                  border: InputBorder.none,
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
-                                ),
-                                onSubmitted: (text) => _openChat(text),
-                              ),
-                            ),
-                            GestureDetector(
-                              onTap: () => _openChat(_chatController.text),
-                              child: Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: Container(
-                                  width: 32, height: 32,
-                                  decoration: BoxDecoration(color: primary, shape: BoxShape.circle),
-                                  child: Icon(Icons.arrow_upward, color: th.colorScheme.onPrimary, size: 16),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                TextButton.icon(
+                  onPressed: _showAddTaskSheet,
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text('Add'),
                 ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // ── Suggestions ──
-              Padding(
-                padding: const EdgeInsets.only(left: 20, bottom: 10),
-                child: Text(
-                  'Suggestions for you',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: onSurface),
-                ),
-              ),
-              SizedBox(
-                height: 80,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.only(left: 20, right: 8),
-                  itemCount: _suggestions.length,
-                  itemBuilder: (context, i) {
-                    final s = _suggestions[i];
-                    final label = s['label'] as String;
-                    return GestureDetector(
-                      onTap: () => _openChat(label),
-                      child: Container(
-                        margin: const EdgeInsets.only(right: 10),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: s['color'] as Color,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(s['emoji'] as String, style: const TextStyle(fontSize: 20)),
-                            const SizedBox(height: 4),
-                            Text(
-                              label,
-                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.87)),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // ── Today's Plan ──
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: card,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [BoxShadow(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.05), blurRadius: 12)],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Text('📋', style: TextStyle(fontSize: 18)),
-                          const SizedBox(width: 8),
-                          Text(
-                            "Today's Plan",
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: onSurface),
-                          ),
-                          const Spacer(),
-                          if (_tasks.isNotEmpty)
-                            Text(
-                              '$_completedTasks/${_tasks.length}',
-                              style: TextStyle(fontSize: 13, color: onSurface.withOpacity(0.38)),
-                            ),
-                          const SizedBox(width: 12),
-                          GestureDetector(
-                            onTap: _showAddTaskSheet,
-                            child: const Text(
-                              'Edit',
-                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: kBlue),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-
-                      if (_tasks.isEmpty)
-                        _EmptyTasks(onAdd: _showAddTaskSheet)
-                      else
-                        ..._tasks.map((task) => _TaskRow(
-                          task: task,
-                          onToggle: () => _toggleTask(task['id'], task['completed'] == true),
-                        )),
-
-                      const SizedBox(height: 10),
-                      GestureDetector(
-                        onTap: _showAddTaskSheet,
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 22, height: 22,
-                              decoration: BoxDecoration(
-                                border: Border.all(color: onSurface.withOpacity(0.26)),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(Icons.add, size: 14, color: onSurface.withOpacity(0.38)),
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              'Add a task',
-                              style: TextStyle(fontSize: 14, color: onSurface.withOpacity(0.38)),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 32),
-            ],
-          ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _buildTasksCard(context),
+            const SizedBox(height: 20),
+            _buildAskBar(context),
+          ],
         ),
       ),
     );
   }
 
+  Widget _roundAction(IconData icon, String label, VoidCallback onTap) =>
+      Material(
+        color: kCard,
+        shape: const CircleBorder(),
+        child: IconButton(
+          onPressed: onTap,
+          tooltip: label,
+          icon: Icon(icon, color: kInk),
+          constraints: const BoxConstraints.tightFor(width: 42, height: 42),
+        ),
+      );
+
+  Widget _notificationAction() => Stack(
+    clipBehavior: Clip.none,
+    children: [
+      _roundAction(
+        Icons.notifications_none_rounded,
+        'Notifications',
+        _openNotifications,
+      ),
+      if (_notifications.isNotEmpty)
+        Positioned(
+          right: 0,
+          top: 0,
+          child: Container(
+            width: 9,
+            height: 9,
+            decoration: BoxDecoration(
+              color: kKloudyCyan,
+              shape: BoxShape.circle,
+              border: Border.all(color: kBackground, width: 1.5),
+            ),
+          ),
+        ),
+    ],
+  );
+
+  Widget _sectionTitle(String title, String subtitle) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        title,
+        style: const TextStyle(
+          color: kInk,
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.4,
+        ),
+      ),
+      const SizedBox(height: 3),
+      Text(subtitle, style: const TextStyle(color: kDimText, fontSize: 12.5)),
+    ],
+  );
+
+  Widget _buildKloudyHero(BuildContext context) => Container(
+    clipBehavior: Clip.antiAlias,
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(27),
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xFF20264C), Color(0xFF343A72), Color(0xFF435A89)],
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: kKloudyBlue.withValues(alpha: 0.20),
+          blurRadius: 24,
+          offset: const Offset(0, 12),
+        ),
+      ],
+    ),
+    child: Stack(
+      children: [
+        Positioned(
+          right: -22,
+          top: -45,
+          child: Container(
+            width: 170,
+            height: 170,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.08),
+                width: 28,
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          right: 72,
+          bottom: -58,
+          child: Container(
+            width: 135,
+            height: 135,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: kKloudyCyan.withValues(alpha: 0.09),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(21, 20, 17, 20),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'YOUR PERSONAL GUIDE',
+                        style: TextStyle(
+                          color: Color(0xFFC7EAE9),
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Talk to Kloudy',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 23,
+                        height: 1.12,
+                        letterSpacing: -0.6,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const SizedBox(height: 12),
+                    Container(
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _chatController,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                              ),
+                              textInputAction: TextInputAction.send,
+                              onSubmitted: _openChat,
+                              decoration: InputDecoration(
+                                hintText: "What's on your mind?",
+                                hintStyle: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.7),
+                                ),
+                                border: InputBorder.none,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 13,
+                                ),
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => _openChat(_chatController.text),
+                            icon: const Icon(
+                              Icons.arrow_forward_rounded,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 5),
+              const KloudyMark(size: 87),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _snapshotCard(
+    IconData icon,
+    String value,
+    String label,
+    Color tint, {
+    VoidCallback? onTap,
+  }) => Material(
+    color: kCard,
+    borderRadius: BorderRadius.circular(19),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(19),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 13, 8, 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(19),
+          border: Border.all(color: kBorder.withValues(alpha: 0.75)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 31,
+              height: 31,
+              decoration: BoxDecoration(
+                color: tint,
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Icon(icon, size: 17, color: kInk),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: kInk,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.4,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: kDimText, fontSize: 10.5),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  Widget _buildMoodCheckIn() => Container(
+    padding: const EdgeInsets.all(15),
+    decoration: BoxDecoration(
+      color: kCard,
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: kBorder.withValues(alpha: 0.75)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            IconButton(
+              onPressed: _addMood,
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+              padding: EdgeInsets.zero,
+              icon: const Icon(
+                Icons.add_circle_outline_rounded,
+                size: 19,
+                color: kKloudyBlue,
+              ),
+            ),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Quick check-in',
+                    style: TextStyle(
+                      color: kInk,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  SizedBox(height: 3),
+                  Text(
+                    'How are you feeling today?',
+                    style: TextStyle(color: kDimText, fontSize: 11.5),
+                  ),
+                ],
+              ),
+            ),
+            if (_selectedMood != null)
+              Text(
+                '$_selectedMood ${_moods.firstWhere((m) => m['label'] == _selectedMood, orElse: () => {'emoji': ''})['emoji']}',
+                style: const TextStyle(
+                  color: kKloudyBlue,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: _moods
+              .where(
+                (m) => [
+                  'Low',
+                  'Meh',
+                  'Okay',
+                  'Good',
+                  'Great',
+                ].contains(m['label']),
+              )
+              .map((mood) {
+                final selected = _selectedMood == mood['label'];
+                return GestureDetector(
+                  onTap: () => _selectMood(mood['label']!),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: selected ? kChipIndigo : kBackground,
+                      borderRadius: BorderRadius.circular(15),
+                      border: Border.all(
+                        color: selected ? kKloudyBlue : kBorder,
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      mood['emoji']!,
+                      style: const TextStyle(fontSize: 21),
+                    ),
+                  ),
+                );
+              })
+              .toList(),
+        ),
+      ],
+    ),
+  );
+
+  Widget _lifeTile({
+    required double width,
+    required IconData icon,
+    required String title,
+    required String detail,
+    required Color tint,
+    required VoidCallback onTap,
+  }) => SizedBox(
+    width: width,
+    child: Material(
+      color: kCard,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: kBorder.withValues(alpha: 0.75)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: tint,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, size: 19, color: kInk),
+              ),
+              const SizedBox(height: 13),
+              Text(
+                title,
+                style: const TextStyle(
+                  color: kInk,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                detail,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: kDimText, fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+
+  Widget _buildTasksCard(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+    decoration: BoxDecoration(
+      color: kCard,
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: kBorder.withValues(alpha: 0.75)),
+    ),
+    child: _tasks.isEmpty
+        ? ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.add_task_rounded, color: kKloudyBlue),
+            title: const Text(
+              'Start with one small thing',
+              style: TextStyle(
+                color: kInk,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            subtitle: const Text(
+              'Your plan can be simple.',
+              style: TextStyle(color: kDimText, fontSize: 11),
+            ),
+            onTap: _showAddTaskSheet,
+          )
+        : Column(
+            children: [
+              ..._tasks
+                  .take(4)
+                  .map(
+                    (task) => _TaskRow(
+                      task: task,
+                      onToggle: () =>
+                          _toggleTask(task['id'], task['completed'] == true),
+                    ),
+                  ),
+              if (_tasks.length > 4)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8, bottom: 7),
+                  child: Text(
+                    '+ ${_tasks.length - 4} more in your plan',
+                    style: const TextStyle(color: kDimText, fontSize: 11),
+                  ),
+                ),
+            ],
+          ),
+  );
+
+  Widget _buildAskBar(BuildContext context) => Material(
+    color: kCard,
+    borderRadius: BorderRadius.circular(18),
+    child: InkWell(
+      onTap: () => _openChat('I have a question about adulting.'),
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: kBorder),
+        ),
+        child: const Row(
+          children: [
+            Icon(
+              Icons.chat_bubble_outline_rounded,
+              color: kKloudyBlue,
+              size: 19,
+            ),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'What do you wish someone had explained?',
+                style: TextStyle(color: kDimText, fontSize: 12),
+              ),
+            ),
+            Icon(Icons.arrow_forward_rounded, color: kKloudyBlue, size: 18),
+          ],
+        ),
+      ),
+    ),
+  );
+
   void _showSleepLogSheet() {
-    var selectedHours = 8;
+    var bedtime = const TimeOfDay(hour: 22, minute: 0);
+    var wakeTime = const TimeOfDay(hour: 6, minute: 0);
     showModalBottomSheet(
       context: context,
       backgroundColor: Theme.of(context).cardColor,
@@ -880,88 +1102,132 @@ class _HomeTabState extends State<_HomeTab> {
         final th = Theme.of(ctx);
         final onSurface = th.colorScheme.onSurface;
         return StatefulBuilder(
-          builder: (ctx, setModalState) => Padding(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 48),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'How many hours did you sleep?',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: onSurface),
-                ),
-                const SizedBox(height: 6),
-                Text('Last night', style: TextStyle(fontSize: 13, color: onSurface.withOpacity(0.45))),
-                const SizedBox(height: 28),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    GestureDetector(
-                      onTap: () => setModalState(() { if (selectedHours > 3) selectedHours--; }),
-                      child: Container(
-                        width: 48, height: 48,
-                        decoration: BoxDecoration(
-                          color: onSurface.withOpacity(0.07),
-                          shape: BoxShape.circle,
+          builder: (ctx, setModalState) {
+            final bedMinutes = bedtime.hour * 60 + bedtime.minute;
+            var wakeMinutes = wakeTime.hour * 60 + wakeTime.minute;
+            if (wakeMinutes <= bedMinutes) wakeMinutes += 24 * 60;
+            final durationMinutes = wakeMinutes - bedMinutes;
+            final hours = durationMinutes / 60;
+            final durationLabel =
+                '${durationMinutes ~/ 60}h ${durationMinutes % 60}m';
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 48),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Log last night’s sleep',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Last night',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: onSurface.withOpacity(0.45),
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final value = await showTimePicker(
+                              context: ctx,
+                              initialTime: bedtime,
+                            );
+                            if (value != null)
+                              setModalState(() => bedtime = value);
+                          },
+                          icon: const Icon(Icons.bedtime_outlined),
+                          label: Text('Bedtime ${bedtime.format(ctx)}'),
                         ),
-                        child: Icon(Icons.remove, size: 22, color: onSurface),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final value = await showTimePicker(
+                              context: ctx,
+                              initialTime: wakeTime,
+                            );
+                            if (value != null)
+                              setModalState(() => wakeTime = value);
+                          },
+                          icon: const Icon(Icons.wb_sunny_outlined),
+                          label: Text('Wake ${wakeTime.format(ctx)}'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    durationLabel,
+                    style: TextStyle(
+                      fontSize: 38,
+                      fontWeight: FontWeight.w800,
+                      color: onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    hours >= 7
+                        ? 'Good sleep · Counts toward your streak'
+                        : hours < 5
+                        ? 'Low sleep'
+                        : 'A little more rest may help',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: hours >= 7
+                          ? kGreen
+                          : hours < 5
+                          ? Colors.red
+                          : onSurface.withOpacity(0.55),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        final hrs = hours;
+                        Navigator.pop(ctx);
+                        await SupabaseService.saveSleepLog(
+                          hrs.toDouble(),
+                          bedTime: bedtime.format(ctx),
+                          wakeTime: wakeTime.format(ctx),
+                        );
+                        final sleepData =
+                            await SupabaseService.fetchSleepData();
+                        if (mounted) setState(() => _sleepData = sleepData);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: th.colorScheme.primary,
+                        foregroundColor: th.colorScheme.onPrimary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Text(
+                        'Save',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 32),
-                    Column(
-                      children: [
-                        Text(
-                          '$selectedHours',
-                          style: TextStyle(fontSize: 56, fontWeight: FontWeight.w800, height: 1, color: onSurface),
-                        ),
-                        Text('hours', style: TextStyle(fontSize: 14, color: onSurface.withOpacity(0.45))),
-                      ],
-                    ),
-                    const SizedBox(width: 32),
-                    GestureDetector(
-                      onTap: () => setModalState(() { if (selectedHours < 14) selectedHours++; }),
-                      child: Container(
-                        width: 48, height: 48,
-                        decoration: BoxDecoration(
-                          color: onSurface.withOpacity(0.07),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(Icons.add, size: 22, color: onSurface),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  selectedHours >= 7 ? '🔥 Counts toward streak!' : 'Need 7+ hours to count toward streak',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: selectedHours >= 7 ? kGreen : onSurface.withOpacity(0.38),
-                    fontWeight: FontWeight.w500,
                   ),
-                ),
-                const SizedBox(height: 32),
-                SizedBox(
-                  width: double.infinity,
-                  height: 54,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      final hrs = selectedHours;
-                      Navigator.pop(ctx);
-                      await SupabaseService.saveSleepLog(hrs.toDouble());
-                      final sleepData = await SupabaseService.fetchSleepData();
-                      if (mounted) setState(() => _sleepData = sleepData);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: th.colorScheme.primary,
-                      foregroundColor: th.colorScheme.onPrimary,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    ),
-                    child: const Text('Save', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                  ),
-                ),
-              ],
-            ),
-          ),
+                ],
+              ),
+            );
+          },
         );
       },
     );
@@ -980,14 +1246,23 @@ class _HomeTabState extends State<_HomeTab> {
         final onSurface = th.colorScheme.onSurface;
         return Padding(
           padding: EdgeInsets.only(
-            left: 24, right: 24, top: 24,
+            left: 24,
+            right: 24,
+            top: 24,
             bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Add a task', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: onSurface)),
+              Text(
+                'Add a task',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: onSurface,
+                ),
+              ),
               const SizedBox(height: 16),
               TextField(
                 controller: _newTaskController,
@@ -1018,9 +1293,14 @@ class _HomeTabState extends State<_HomeTab> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: th.colorScheme.primary,
                     foregroundColor: th.colorScheme.onPrimary,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
-                  child: const Text('Add', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  child: const Text(
+                    'Add',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
                 ),
               ),
             ],
@@ -1068,19 +1348,32 @@ class _OverviewCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 36, height: 36,
+              width: 36,
+              height: 36,
               decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
-              child: Center(child: Text(icon, style: const TextStyle(fontSize: 17))),
+              child: Center(
+                child: Text(icon, style: const TextStyle(fontSize: 17)),
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               value,
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: onSurface),
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: onSurface,
+              ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 2),
-            Text(label, style: TextStyle(fontSize: 10, color: onSurface.withOpacity(0.45))),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                color: onSurface.withOpacity(0.45),
+              ),
+            ),
             if (progress != null) ...[
               const SizedBox(height: 6),
               ClipRRect(
@@ -1089,7 +1382,9 @@ class _OverviewCard extends StatelessWidget {
                   value: progress,
                   minHeight: 4,
                   backgroundColor: onSurface.withOpacity(0.12),
-                  valueColor: AlwaysStoppedAnimation<Color>(progressColor ?? onSurface),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    progressColor ?? onSurface,
+                  ),
                 ),
               ),
             ],
@@ -1123,7 +1418,8 @@ class _TaskRow extends StatelessWidget {
             onTap: onToggle,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              width: 24, height: 24,
+              width: 24,
+              height: 24,
               decoration: BoxDecoration(
                 color: done ? kGreen : Colors.transparent,
                 shape: BoxShape.circle,
@@ -1132,7 +1428,9 @@ class _TaskRow extends StatelessWidget {
                   width: 1.5,
                 ),
               ),
-              child: done ? const Icon(Icons.check, size: 14, color: Colors.white) : null,
+              child: done
+                  ? const Icon(Icons.check, size: 14, color: Colors.white)
+                  : null,
             ),
           ),
           const SizedBox(width: 12),
@@ -1150,11 +1448,21 @@ class _TaskRow extends StatelessWidget {
                   ),
                 ),
                 if (aiSuggested)
-                  Text('Suggested by Kloudy', style: TextStyle(fontSize: 11, color: onSurface.withOpacity(0.38))),
+                  Text(
+                    'Suggested by Kloudy',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: onSurface.withOpacity(0.38),
+                    ),
+                  ),
               ],
             ),
           ),
-          Icon(Icons.chevron_right, color: onSurface.withOpacity(0.26), size: 20),
+          Icon(
+            Icons.chevron_right,
+            color: onSurface.withOpacity(0.26),
+            size: 20,
+          ),
         ],
       ),
     );
@@ -1186,7 +1494,8 @@ class _SleepStreakCard extends StatelessWidget {
   double? get _todayHours {
     if (!_loggedToday) return null;
     return ((sleepData!['logs'] as List).first as Map)['hours'] is num
-        ? (((sleepData!['logs'] as List).first as Map)['hours'] as num).toDouble()
+        ? (((sleepData!['logs'] as List).first as Map)['hours'] as num)
+              .toDouble()
         : null;
   }
 
@@ -1224,7 +1533,9 @@ class _SleepStreakCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: th.cardColor,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [BoxShadow(color: onSurface.withValues(alpha: 0.05), blurRadius: 12)],
+          boxShadow: [
+            BoxShadow(color: onSurface.withValues(alpha: 0.05), blurRadius: 12),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1234,16 +1545,21 @@ class _SleepStreakCard extends StatelessWidget {
               children: [
                 const Text('💤', style: TextStyle(fontSize: 16)),
                 const SizedBox(width: 8),
-                Text('Sleep',
-                    style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: onSurface)),
+                Text(
+                  'Sleep',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: onSurface,
+                  ),
+                ),
                 const Spacer(),
                 if (streak > 0)
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFFFF3E0),
                       borderRadius: BorderRadius.circular(20),
@@ -1253,10 +1569,13 @@ class _SleepStreakCard extends StatelessWidget {
                       children: [
                         const Text('🔥', style: TextStyle(fontSize: 12)),
                         const SizedBox(width: 4),
-                        Text('$streak day streak',
-                            style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600)),
+                        Text(
+                          '$streak day streak',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -1301,24 +1620,29 @@ class _SleepStreakCard extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: logged
                       ? [
-                          const Icon(Icons.check_circle,
-                              color: kGreen, size: 16),
+                          const Icon(
+                            Icons.check_circle,
+                            color: kGreen,
+                            size: 16,
+                          ),
                           const SizedBox(width: 6),
                           Text(
                             '${_todayHours != null ? (_todayHours! % 1 == 0 ? _todayHours!.toInt().toString() : _todayHours!.toStringAsFixed(1)) : '?'} hrs logged',
                             style: const TextStyle(
-                                color: kGreen,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600),
+                              color: kGreen,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ]
                       : [
                           Text(
                             'Log last night',
                             style: TextStyle(
-                                color: th.colorScheme.onPrimary,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600),
+                              color: th.colorScheme.onPrimary,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ],
                 ),
@@ -1348,9 +1672,9 @@ class _SleepDayColumn extends StatelessWidget {
   });
 
   Color _circleColor(double h) {
-    if (h >= 7) return const Color(0xFFDCEED4);   // green — good
-    if (h >= 6) return const Color(0xFFFFF9C4);   // yellow — ok
-    return const Color(0xFFFFE0D0);               // orange — short
+    if (h >= 7) return const Color(0xFFDCEED4); // green — good
+    if (h >= 6) return const Color(0xFFFFF9C4); // yellow — ok
+    return const Color(0xFFFFE0D0); // orange — short
   }
 
   @override
@@ -1360,8 +1684,8 @@ class _SleepDayColumn extends StatelessWidget {
     final hasLog = hours != null;
     final hrsText = hasLog
         ? (hours! % 1 == 0
-            ? '${hours!.toInt()}h'
-            : '${hours!.toStringAsFixed(1)}h')
+              ? '${hours!.toInt()}h'
+              : '${hours!.toStringAsFixed(1)}h')
         : null;
 
     return Column(
@@ -1387,21 +1711,26 @@ class _SleepDayColumn extends StatelessWidget {
                 : onSurface.withValues(alpha: 0.06),
             shape: BoxShape.circle,
             border: isToday && !hasLog
-                ? Border.all(
-                    color: primary.withValues(alpha: 0.4), width: 1.5)
+                ? Border.all(color: primary.withValues(alpha: 0.4), width: 1.5)
                 : null,
           ),
           child: Center(
             child: hasLog
-                ? Text(hrsText!,
+                ? Text(
+                    hrsText!,
                     style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: onSurface))
-                : Text('—',
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: onSurface,
+                    ),
+                  )
+                : Text(
+                    '—',
                     style: TextStyle(
-                        fontSize: 12,
-                        color: onSurface.withValues(alpha: 0.22))),
+                      fontSize: 12,
+                      color: onSurface.withValues(alpha: 0.22),
+                    ),
+                  ),
           ),
         ),
 
@@ -1413,10 +1742,13 @@ class _SleepDayColumn extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Text('🔥', style: TextStyle(fontSize: 11)),
-                    Text('$streakCount',
-                        style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700)),
+                    Text(
+                      '$streakCount',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ],
                 )
               : null,
@@ -1440,13 +1772,20 @@ class _EmptyTasks extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Column(
         children: [
-          Text('No tasks yet today', style: TextStyle(color: onSurface.withOpacity(0.38), fontSize: 14)),
+          Text(
+            'No tasks yet today',
+            style: TextStyle(color: onSurface.withOpacity(0.38), fontSize: 14),
+          ),
           const SizedBox(height: 8),
           GestureDetector(
             onTap: onAdd,
             child: const Text(
               'Add your first task',
-              style: TextStyle(color: kBlue, fontSize: 14, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                color: kBlue,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -1528,7 +1867,11 @@ class _KloudyMenuSheetState extends State<_KloudyMenuSheet> {
     final bytes = await file.readAsBytes();
     final b64 = base64Encode(bytes);
     await SupabaseService.saveAvatarBase64(b64);
-    if (mounted) setState(() { _avatarBase64 = b64; _savingAvatar = false; });
+    if (mounted)
+      setState(() {
+        _avatarBase64 = b64;
+        _savingAvatar = false;
+      });
   }
 
   String _initials(String name) {
@@ -1558,7 +1901,8 @@ class _KloudyMenuSheetState extends State<_KloudyMenuSheet> {
           children: [
             Container(
               margin: const EdgeInsets.only(top: 12),
-              width: 36, height: 4,
+              width: 36,
+              height: 4,
               decoration: BoxDecoration(
                 color: onSurface.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(2),
@@ -1597,38 +1941,67 @@ class _KloudyMenuSheetState extends State<_KloudyMenuSheet> {
           child: Stack(
             children: [
               Container(
-                width: 58, height: 58,
+                width: 58,
+                height: 58,
                 decoration: BoxDecoration(
-                  color: isDark ? Colors.white.withOpacity(0.1) : primary.withOpacity(0.12),
+                  color: isDark
+                      ? Colors.white.withOpacity(0.1)
+                      : primary.withOpacity(0.12),
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: isDark ? Colors.white.withOpacity(0.2) : primary.withOpacity(0.3),
+                    color: isDark
+                        ? Colors.white.withOpacity(0.2)
+                        : primary.withOpacity(0.3),
                     width: 1.5,
                   ),
                 ),
                 child: ClipOval(
                   child: _savingAvatar
-                      ? Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: primary)))
-                      : _avatarBase64 != null
-                          ? Image.memory(base64Decode(_avatarBase64!), fit: BoxFit.cover, width: 58, height: 58)
-                          : Center(
-                              child: Text(
-                                _initials(widget.displayName),
-                                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: isDark ? Colors.white : primary),
-                              ),
+                      ? Center(
+                          child: SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: primary,
                             ),
+                          ),
+                        )
+                      : _avatarBase64 != null
+                      ? Image.memory(
+                          base64Decode(_avatarBase64!),
+                          fit: BoxFit.cover,
+                          width: 58,
+                          height: 58,
+                        )
+                      : Center(
+                          child: Text(
+                            _initials(widget.displayName),
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                              color: isDark ? Colors.white : primary,
+                            ),
+                          ),
+                        ),
                 ),
               ),
               Positioned(
-                bottom: 0, right: 0,
+                bottom: 0,
+                right: 0,
                 child: Container(
-                  width: 20, height: 20,
+                  width: 20,
+                  height: 20,
                   decoration: BoxDecoration(
                     color: primary,
                     shape: BoxShape.circle,
                     border: Border.all(color: th.cardColor, width: 1.5),
                   ),
-                  child: Icon(Icons.camera_alt, size: 11, color: th.colorScheme.onPrimary),
+                  child: Icon(
+                    Icons.camera_alt,
+                    size: 11,
+                    color: th.colorScheme.onPrimary,
+                  ),
                 ),
               ),
             ],
@@ -1639,7 +2012,14 @@ class _KloudyMenuSheetState extends State<_KloudyMenuSheet> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(widget.displayName, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: onSurface)),
+              Text(
+                widget.displayName,
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: onSurface,
+                ),
+              ),
               const SizedBox(height: 3),
               if (!_editingUsername)
                 GestureDetector(
@@ -1648,14 +2028,22 @@ class _KloudyMenuSheetState extends State<_KloudyMenuSheet> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        _usernameCtrl.text.isNotEmpty ? '@${_usernameCtrl.text}' : 'Add a username',
+                        _usernameCtrl.text.isNotEmpty
+                            ? '@${_usernameCtrl.text}'
+                            : 'Add a username',
                         style: TextStyle(
                           fontSize: 13,
-                          color: _usernameCtrl.text.isNotEmpty ? primary : onSurface.withOpacity(0.4),
+                          color: _usernameCtrl.text.isNotEmpty
+                              ? primary
+                              : onSurface.withOpacity(0.4),
                         ),
                       ),
                       const SizedBox(width: 4),
-                      Icon(Icons.edit_outlined, size: 12, color: onSurface.withOpacity(0.3)),
+                      Icon(
+                        Icons.edit_outlined,
+                        size: 12,
+                        color: onSurface.withOpacity(0.3),
+                      ),
                     ],
                   ),
                 )
@@ -1669,9 +2057,15 @@ class _KloudyMenuSheetState extends State<_KloudyMenuSheet> {
                         style: TextStyle(fontSize: 13, color: onSurface),
                         decoration: InputDecoration(
                           hintText: 'username',
-                          hintStyle: TextStyle(color: onSurface.withOpacity(0.35), fontSize: 13),
+                          hintStyle: TextStyle(
+                            color: onSurface.withOpacity(0.35),
+                            fontSize: 13,
+                          ),
                           isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
                           filled: true,
                           fillColor: onSurface.withOpacity(0.07),
                           border: OutlineInputBorder(
@@ -1687,23 +2081,40 @@ class _KloudyMenuSheetState extends State<_KloudyMenuSheet> {
                           ? null
                           : () async {
                               setState(() => _savingUsername = true);
-                              await SupabaseService.saveUsername(_usernameCtrl.text.trim());
-                              if (mounted) setState(() { _editingUsername = false; _savingUsername = false; });
+                              await SupabaseService.saveUsername(
+                                _usernameCtrl.text.trim(),
+                              );
+                              if (mounted)
+                                setState(() {
+                                  _editingUsername = false;
+                                  _savingUsername = false;
+                                });
                             },
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
                           color: th.colorScheme.primary,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: _savingUsername
                             ? SizedBox(
-                                width: 12, height: 12,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: th.colorScheme.onPrimary),
+                                width: 12,
+                                height: 12,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: th.colorScheme.onPrimary,
+                                ),
                               )
                             : Text(
                                 'Save',
-                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: th.colorScheme.onPrimary),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: th.colorScheme.onPrimary,
+                                ),
                               ),
                       ),
                     ),
@@ -1711,7 +2122,13 @@ class _KloudyMenuSheetState extends State<_KloudyMenuSheet> {
                 ),
               if (email != null && !_editingUsername) ...[
                 const SizedBox(height: 2),
-                Text(email, style: TextStyle(fontSize: 11, color: onSurface.withOpacity(0.35))),
+                Text(
+                  email,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: onSurface.withOpacity(0.35),
+                  ),
+                ),
               ],
             ],
           ),
@@ -1726,11 +2143,20 @@ class _KloudyMenuSheetState extends State<_KloudyMenuSheet> {
       children: [
         Row(
           children: [
-            Icon(Icons.settings_outlined, size: 15, color: onSurface.withOpacity(0.5)),
+            Icon(
+              Icons.settings_outlined,
+              size: 15,
+              color: onSurface.withOpacity(0.5),
+            ),
             const SizedBox(width: 7),
             Text(
               'SETTINGS',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: onSurface.withOpacity(0.5), letterSpacing: 0.8),
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: onSurface.withOpacity(0.5),
+                letterSpacing: 0.8,
+              ),
             ),
           ],
         ),
@@ -1760,7 +2186,10 @@ class _KloudyMenuSheetState extends State<_KloudyMenuSheet> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: th.cardColor,
-        title: Text('Delete account?', style: TextStyle(color: th.colorScheme.onSurface)),
+        title: Text(
+          'Delete account?',
+          style: TextStyle(color: th.colorScheme.onSurface),
+        ),
         content: Text(
           'This will permanently delete your profile and all your data. This cannot be undone.',
           style: TextStyle(color: th.colorScheme.onSurface.withOpacity(0.7)),
@@ -1768,7 +2197,10 @@ class _KloudyMenuSheetState extends State<_KloudyMenuSheet> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel', style: TextStyle(color: th.colorScheme.onSurface)),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: th.colorScheme.onSurface),
+            ),
           ),
           TextButton(
             onPressed: () async {
@@ -1811,14 +2243,23 @@ class _SettingsRow extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: destructive ? Colors.red.withOpacity(0.08) : onSurface.withOpacity(0.05),
+          color: destructive
+              ? Colors.red.withOpacity(0.08)
+              : onSurface.withOpacity(0.05),
           borderRadius: BorderRadius.circular(14),
         ),
         child: Row(
           children: [
             Icon(icon, size: 18, color: color),
             const SizedBox(width: 12),
-            Text(label, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: color)),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+                color: color,
+              ),
+            ),
             const Spacer(),
             Icon(Icons.chevron_right, size: 16, color: color.withOpacity(0.4)),
           ],
@@ -1863,72 +2304,85 @@ List<_AppNotification> buildAppNotifications({
 
   if (profile?['improve_sleep'] == true || sleepData != null) {
     if (!loggedToday) {
-      notes.add(const _AppNotification(
-        icon: Icons.bedtime_outlined,
-        color: Color(0xFF5B8FD4),
-        title: 'Log last night\'s sleep',
-        body: 'Keep your streak alive — how many hours did you get?',
-        category: 'Sleep',
-      ));
+      notes.add(
+        const _AppNotification(
+          icon: Icons.bedtime_outlined,
+          color: Color(0xFF5B8FD4),
+          title: 'Log last night\'s sleep',
+          body: 'Keep your streak alive — how many hours did you get?',
+          category: 'Sleep',
+        ),
+      );
     }
     if (streak > 0 && streak % 7 == 0) {
-      notes.add(_AppNotification(
-        icon: Icons.local_fire_department_outlined,
-        color: const Color(0xFFFF9800),
-        title: '$streak-day sleep streak 🔥',
-        body: 'You\'ve hit $streak days in a row. Your body thanks you.',
-        category: 'Milestone',
-      ));
+      notes.add(
+        _AppNotification(
+          icon: Icons.local_fire_department_outlined,
+          color: const Color(0xFFFF9800),
+          title: '$streak-day sleep streak 🔥',
+          body: 'You\'ve hit $streak days in a row. Your body thanks you.',
+          category: 'Milestone',
+        ),
+      );
     }
   }
 
   // ── Tasks ──────────────────────────────────────────────────────────
   final incomplete = tasks.where((t) => t['completed'] != true).length;
   if (tasks.isNotEmpty && incomplete > 0) {
-    notes.add(_AppNotification(
-      icon: Icons.check_circle_outline,
-      color: const Color(0xFF4CAF50),
-      title: '$incomplete task${incomplete == 1 ? '' : 's'} left today',
-      body: incomplete == 1
-          ? 'One more to go — you\'ve almost finished your day!'
-          : 'Knock out $incomplete more tasks to complete your day.',
-      category: 'Tasks',
-    ));
+    notes.add(
+      _AppNotification(
+        icon: Icons.check_circle_outline,
+        color: const Color(0xFF4CAF50),
+        title: '$incomplete task${incomplete == 1 ? '' : 's'} left today',
+        body: incomplete == 1
+            ? 'One more to go — you\'ve almost finished your day!'
+            : 'Knock out $incomplete more tasks to complete your day.',
+        category: 'Tasks',
+      ),
+    );
   }
 
   // ── Mood ──────────────────────────────────────────────────────────
   if (selectedMood == null) {
-    notes.add(const _AppNotification(
-      icon: Icons.mood_outlined,
-      color: Color(0xFFFFB300),
-      title: 'How are you feeling today?',
-      body: 'Log your mood so Kloudy can personalize your day.',
-      category: 'Wellness',
-    ));
+    notes.add(
+      const _AppNotification(
+        icon: Icons.mood_outlined,
+        color: Color(0xFFFFB300),
+        title: 'How are you feeling today?',
+        body: 'Log your mood so Kloudy can personalize your day.',
+        category: 'Wellness',
+      ),
+    );
   }
 
   // ── Nutrition nudge ────────────────────────────────────────────────
   if (profile?['lose_weight'] == true ||
       profile?['improve_nutrition'] == true ||
       profile?['build_muscle'] == true) {
-    notes.add(const _AppNotification(
-      icon: Icons.restaurant_menu_outlined,
-      color: Color(0xFFFF7043),
-      title: 'Log your meals',
-      body: 'Track what you eat today to stay on top of your nutrition goals.',
-      category: 'Nutrition',
-    ));
+    notes.add(
+      const _AppNotification(
+        icon: Icons.restaurant_menu_outlined,
+        color: Color(0xFFFF7043),
+        title: 'Log your meals',
+        body:
+            'Track what you eat today to stay on top of your nutrition goals.',
+        category: 'Nutrition',
+      ),
+    );
   }
 
   // ── Finance nudge ──────────────────────────────────────────────────
   if (profile?['save_money'] == true || profile?['build_wealth'] == true) {
-    notes.add(const _AppNotification(
-      icon: Icons.attach_money,
-      color: Color(0xFF66BB6A),
-      title: 'Review your spending',
-      body: 'Check in on your budget to stay on track this week.',
-      category: 'Finance',
-    ));
+    notes.add(
+      const _AppNotification(
+        icon: Icons.attach_money,
+        color: Color(0xFF66BB6A),
+        title: 'Review your spending',
+        body: 'Check in on your budget to stay on track this week.',
+        category: 'Finance',
+      ),
+    );
   }
 
   // ── Health checkups ────────────────────────────────────────────────
@@ -1940,17 +2394,21 @@ List<_AppNotification> buildAppNotifications({
     void check(String key, String label, List<String> overdueVals) {
       if (overdueVals.contains(checkups[key])) overdue.add(label);
     }
+
     check('primary_care', 'primary care', ['2plus_yr']);
     check('dental', 'dental', ['1_2yr', '2plus_yr']);
     check('obgyn', 'OBGYN', ['2plus_yr']);
     if (overdue.isNotEmpty) {
-      notes.add(_AppNotification(
-        icon: Icons.calendar_today_outlined,
-        color: const Color(0xFFE57373),
-        title: 'Checkup reminder',
-        body: 'Your ${overdue.join(' & ')} checkup may be overdue. Worth scheduling!',
-        category: 'Health',
-      ));
+      notes.add(
+        _AppNotification(
+          icon: Icons.calendar_today_outlined,
+          color: const Color(0xFFE57373),
+          title: 'Checkup reminder',
+          body:
+              'Your ${overdue.join(' & ')} checkup may be overdue. Worth scheduling!',
+          category: 'Health',
+        ),
+      );
     }
   }
 
@@ -1963,13 +2421,15 @@ List<_AppNotification> buildAppNotifications({
         .take(2)
         .join(' & ');
     if (medNames.isNotEmpty) {
-      notes.add(_AppNotification(
-        icon: Icons.medication_outlined,
-        color: const Color(0xFF9C27B0),
-        title: 'Medication reminder',
-        body: 'Don\'t forget: $medNames',
-        category: 'Health',
-      ));
+      notes.add(
+        _AppNotification(
+          icon: Icons.medication_outlined,
+          color: const Color(0xFF9C27B0),
+          title: 'Medication reminder',
+          body: 'Don\'t forget: $medNames',
+          category: 'Health',
+        ),
+      );
     }
   }
 
@@ -1998,7 +2458,8 @@ class _NotificationsSheet extends StatelessWidget {
           children: [
             Container(
               margin: const EdgeInsets.only(top: 12),
-              width: 36, height: 4,
+              width: 36,
+              height: 4,
               decoration: BoxDecoration(
                 color: onSurface.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(2),
@@ -2008,18 +2469,33 @@ class _NotificationsSheet extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(24, 20, 24, 4),
               child: Row(
                 children: [
-                  Text('Notifications',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: onSurface)),
+                  Text(
+                    'Notifications',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: onSurface,
+                    ),
+                  ),
                   const Spacer(),
                   if (notifications.isNotEmpty)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: onSurface.withOpacity(0.08),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: Text('${notifications.length}',
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: onSurface)),
+                      child: Text(
+                        '${notifications.length}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: onSurface,
+                        ),
+                      ),
                     ),
                 ],
               ),
@@ -2029,18 +2505,28 @@ class _NotificationsSheet extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 48),
                 child: Column(
                   children: [
-                    Icon(Icons.check_circle_outline, size: 44, color: onSurface.withOpacity(0.18)),
+                    Icon(
+                      Icons.check_circle_outline,
+                      size: 44,
+                      color: onSurface.withOpacity(0.18),
+                    ),
                     const SizedBox(height: 12),
-                    Text('You\'re all caught up!',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600,
-                            color: onSurface.withOpacity(0.35))),
+                    Text(
+                      'You\'re all caught up!',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: onSurface.withOpacity(0.35),
+                      ),
+                    ),
                   ],
                 ),
               )
             else
               ConstrainedBox(
                 constraints: BoxConstraints(
-                    maxHeight: MediaQuery.of(context).size.height * 0.62),
+                  maxHeight: MediaQuery.of(context).size.height * 0.62,
+                ),
                 child: ListView.separated(
                   shrinkWrap: true,
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -2075,7 +2561,8 @@ class _NotificationRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 40, height: 40,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
               color: n.color.withOpacity(0.12),
               borderRadius: BorderRadius.circular(12),
@@ -2091,27 +2578,45 @@ class _NotificationRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      child: Text(n.title,
-                          style: TextStyle(fontSize: 14,
-                              fontWeight: FontWeight.w600, color: onSurface)),
+                      child: Text(
+                        n.title,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: onSurface,
+                        ),
+                      ),
                     ),
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: n.color.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text(n.category,
-                          style: TextStyle(fontSize: 10,
-                              fontWeight: FontWeight.w600, color: n.color)),
+                      child: Text(
+                        n.category,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: n.color,
+                        ),
+                      ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 4),
-                Text(n.body,
-                    style: TextStyle(fontSize: 12,
-                        color: onSurface.withOpacity(0.5), height: 1.4)),
+                Text(
+                  n.body,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: onSurface.withOpacity(0.5),
+                    height: 1.4,
+                  ),
+                ),
               ],
             ),
           ),

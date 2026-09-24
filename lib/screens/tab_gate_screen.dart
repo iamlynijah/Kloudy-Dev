@@ -23,6 +23,14 @@ class TabGateScreen extends StatelessWidget {
     final label = ctaLabel.isNotEmpty ? ctaLabel : 'Set up $tabName';
     return Scaffold(
       backgroundColor: null, // inherits from theme
+      appBar: AppBar(
+        leading: Navigator.of(context).canPop()
+            ? BackButton(color: Theme.of(context).colorScheme.onSurface)
+            : null,
+        title: Text(tabName),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(28, 40, 28, 32),

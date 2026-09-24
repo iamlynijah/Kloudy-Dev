@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../config/api_config.dart';
 import '../models/chat_message.dart';
 import '../services/ai_service.dart';
 import '../services/supabase_service.dart';
-import '../theme/kloudy_theme.dart' show kGold, kBackground;
+import '../theme/kloudy_theme.dart' show kGold, kBackground, kChipIndigo;
+import '../widgets/commons_suggestions.dart';
+import '../widgets/kloudy_mark.dart';
 
 class KloudyChatScreen extends StatefulWidget {
   final String? initialMessage;
@@ -56,7 +57,8 @@ class _KloudyChatScreenState extends State<KloudyChatScreen> {
 
     _scrollToBottom();
 
-    if (widget.initialMessage != null && widget.initialMessage!.trim().isNotEmpty) {
+    if (widget.initialMessage != null &&
+        widget.initialMessage!.trim().isNotEmpty) {
       await _send(widget.initialMessage!.trim());
     }
   }
@@ -77,7 +79,6 @@ class _KloudyChatScreenState extends State<KloudyChatScreen> {
 
     try {
       final reply = await AiService.send(
-        apiKey: kAnthropicApiKey,
         history: _messages.sublist(0, _messages.length - 1),
         message: trimmed,
         userContext: _userContext,
@@ -93,10 +94,13 @@ class _KloudyChatScreenState extends State<KloudyChatScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _messages.add(ChatMessage(
-          role: 'assistant',
-          content: "I'm having a little trouble connecting right now. Give me a second and try again 💙",
-        ));
+        _messages.add(
+          ChatMessage(
+            role: 'assistant',
+            content:
+                "I'm having a little trouble connecting right now. Give me a second and try again 💙",
+          ),
+        );
         _thinking = false;
       });
     }
@@ -131,22 +135,26 @@ class _KloudyChatScreenState extends State<KloudyChatScreen> {
         backgroundColor: card,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: onSurface, size: 18),
+          icon: Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: onSurface,
+            size: 18,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: Row(
           children: [
-            SizedBox(
-              width: 32, height: 32,
-              child: Image.asset('assets/images/kloudy_mascot.png', fit: BoxFit.contain),
-            ),
+            const KloudyMark(size: 32),
             const SizedBox(width: 10),
-            Text('Kloudy',
-                style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.3,
-                    color: onSurface)),
+            Text(
+              'Kloudy',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.3,
+                color: onSurface,
+              ),
+            ),
           ],
         ),
         titleSpacing: 0,
@@ -159,20 +167,28 @@ class _KloudyChatScreenState extends State<KloudyChatScreen> {
         children: [
           Expanded(
             child: _loading
-                ? Center(child: CircularProgressIndicator(color: onSurface.withValues(alpha: 0.3), strokeWidth: 1.5))
+                ? Center(
+                    child: CircularProgressIndicator(
+                      color: onSurface.withValues(alpha: 0.3),
+                      strokeWidth: 1.5,
+                    ),
+                  )
                 : _messages.isEmpty && !_thinking
-                    ? _buildEmptyState(context)
-                    : ListView.builder(
-                        controller: _scroll,
-                        padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-                        itemCount: _messages.length + (_thinking ? 1 : 0),
-                        itemBuilder: (context, i) {
-                          if (_thinking && i == _messages.length) {
-                            return _TypingBubble(cardColor: card, onSurface: onSurface);
-                          }
-                          return _MessageBubble(message: _messages[i]);
-                        },
-                      ),
+                ? _buildEmptyState(context)
+                : ListView.builder(
+                    controller: _scroll,
+                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+                    itemCount: _messages.length + (_thinking ? 1 : 0),
+                    itemBuilder: (context, i) {
+                      if (_thinking && i == _messages.length) {
+                        return _TypingBubble(
+                          cardColor: card,
+                          onSurface: onSurface,
+                        );
+                      }
+                      return _MessageBubble(message: _messages[i]);
+                    },
+                  ),
           ),
           _InputBar(
             controller: _ctrl,
@@ -185,6 +201,12 @@ class _KloudyChatScreenState extends State<KloudyChatScreen> {
               if (_ctrl.text.trim().isNotEmpty && !_thinking) {
                 _send(_ctrl.text);
               }
+            },
+            onSuggestion: (prompt) {
+              _ctrl
+                ..text = prompt
+                ..selection = TextSelection.collapsed(offset: prompt.length);
+              _focus.requestFocus();
             },
           ),
         ],
@@ -206,14 +228,15 @@ class _KloudyChatScreenState extends State<KloudyChatScreen> {
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [Color(0xFFF5EEE6), kBackground],
+              colors: [kChipIndigo, kBackground],
             ),
           ),
           child: Column(
             children: [
               // Gold-ring logo
               Container(
-                width: 84, height: 84,
+                width: 84,
+                height: 84,
                 padding: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
@@ -230,10 +253,7 @@ class _KloudyChatScreenState extends State<KloudyChatScreen> {
                     ),
                   ],
                 ),
-                child: SizedBox(
-                  width: 80, height: 80,
-                  child: Image.asset('assets/images/kloudy_mascot.png', fit: BoxFit.contain),
-                ),
+                child: const KloudyMark(size: 80),
               ),
               const SizedBox(height: 28),
               Text(
@@ -279,11 +299,13 @@ class _KloudyChatScreenState extends State<KloudyChatScreen> {
                   ),
                 ),
                 const SizedBox(height: 14),
-                ..._starterTopics.map((t) => _StarterRow(
-                      emoji: t['emoji']!,
-                      label: t['label']!,
-                      onTap: () => _send(t['label']!),
-                    )),
+                ..._starterTopics.map(
+                  (t) => _StarterRow(
+                    emoji: t['emoji']!,
+                    label: t['label']!,
+                    onTap: () => _send(t['label']!),
+                  ),
+                ),
               ],
             ),
           ),
@@ -318,14 +340,13 @@ class _MessageBubble extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: Row(
-        mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isUser
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isUser) ...[
-            SizedBox(
-              width: 30, height: 30,
-              child: Image.asset('assets/images/kloudy_mascot.png', fit: BoxFit.contain),
-            ),
+            const KloudyMark(size: 30),
             const SizedBox(width: 8),
           ],
           Flexible(
@@ -382,8 +403,10 @@ class _TypingBubbleState extends State<_TypingBubble>
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))
-      ..repeat();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat();
   }
 
   @override
@@ -413,12 +436,7 @@ class _TypingBubbleState extends State<_TypingBubble>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Container(
-            width: 28, height: 28,
-            decoration: BoxDecoration(color: primary, shape: BoxShape.circle),
-            clipBehavior: Clip.antiAlias,
-            child: Image.asset('assets/images/kloudy_logo.png', fit: BoxFit.cover),
-          ),
+          const KloudyMark(size: 28),
           const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
@@ -446,7 +464,8 @@ class _TypingBubbleState extends State<_TypingBubble>
                   final opacity = _sineWave(_ctrl.value, i / 3).clamp(0.0, 1.0);
                   return Container(
                     margin: EdgeInsets.only(right: i < 2 ? 5 : 0),
-                    width: 7, height: 7,
+                    width: 7,
+                    height: 7,
                     decoration: BoxDecoration(
                       color: widget.onSurface.withValues(alpha: opacity),
                       shape: BoxShape.circle,
@@ -472,6 +491,7 @@ class _InputBar extends StatelessWidget {
   final Color primary;
   final Color onPrimary;
   final VoidCallback onSend;
+  final ValueChanged<String> onSuggestion;
 
   const _InputBar({
     required this.controller,
@@ -481,6 +501,7 @@ class _InputBar extends StatelessWidget {
     required this.primary,
     required this.onPrimary,
     required this.onSend,
+    required this.onSuggestion,
   });
 
   @override
@@ -491,42 +512,65 @@ class _InputBar extends StatelessWidget {
       child: Container(
         color: card,
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: onSurface.withValues(alpha: 0.07),
-                  borderRadius: BorderRadius.circular(26),
-                  border: Border.all(color: th.dividerColor),
-                ),
-                child: TextField(
-                  controller: controller,
-                  focusNode: focus,
-                  maxLines: 4,
-                  minLines: 1,
-                  textCapitalization: TextCapitalization.sentences,
-                  style: TextStyle(fontSize: 14, color: onSurface, height: 1.4),
-                  decoration: InputDecoration(
-                    hintText: 'Ask Kloudy anything...',
-                    hintStyle: TextStyle(color: onSurface.withValues(alpha: 0.35), fontSize: 14),
-                    border: InputBorder.none,
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: onSurface.withValues(alpha: 0.07),
+                      borderRadius: BorderRadius.circular(26),
+                      border: Border.all(color: th.dividerColor),
+                    ),
+                    child: TextField(
+                      controller: controller,
+                      focusNode: focus,
+                      maxLines: 4,
+                      minLines: 1,
+                      textCapitalization: TextCapitalization.sentences,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: onSurface,
+                        height: 1.4,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'Ask Kloudy anything...',
+                        hintStyle: TextStyle(
+                          color: onSurface.withValues(alpha: 0.35),
+                          fontSize: 14,
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 12,
+                        ),
+                      ),
+                      onSubmitted: (_) => onSend(),
+                    ),
                   ),
-                  onSubmitted: (_) => onSend(),
                 ),
-              ),
+                const SizedBox(width: 10),
+                GestureDetector(
+                  onTap: onSend,
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: primary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.arrow_upward_rounded,
+                      color: onPrimary,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 10),
-            GestureDetector(
-              onTap: onSend,
-              child: Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(color: primary, shape: BoxShape.circle),
-                child: Icon(Icons.arrow_upward_rounded, color: onPrimary, size: 20),
-              ),
-            ),
+            CommonsSuggestions(onSelect: onSuggestion),
           ],
         ),
       ),
@@ -585,8 +629,11 @@ class _StarterRow extends StatelessWidget {
                 ),
               ),
             ),
-            Icon(Icons.arrow_forward_ios_rounded,
-                size: 13, color: onSurface.withValues(alpha: 0.3)),
+            Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 13,
+              color: onSurface.withValues(alpha: 0.3),
+            ),
           ],
         ),
       ),

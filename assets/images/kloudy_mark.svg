@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
+  <path d="M276 714h462c106 0 192-86 192-192 0-99-75-181-172-191-28-119-135-205-262-205-130 0-238 91-262 213-86 9-153 82-153 171 0 113 82 204 195 204Z" stroke="#F4F7FC" stroke-width="42" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M290 611c91 0 111-94 203-94 77 0 107 32 149 32 68 0 112-120 168-184" stroke="url(#route)" stroke-width="42" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="m760 420 50-55 50 55" stroke="#58DAD6" stroke-width="31" stroke-linecap="round" stroke-linejoin="round"/>
+  <defs>
+    <linearGradient id="route" x1="290" y1="611" x2="810" y2="365" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#48C8D6"/>
+      <stop offset="1" stop-color="#68E5D0"/>
+    </linearGradient>
+  </defs>
+</svg>

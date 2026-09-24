@@ -34,6 +34,12 @@ class _HealthScreenState extends State<HealthScreen> {
     super.initState();
     _load();
     _loadCalendar();
+    FriendService.instance
+        .loadFriends()
+        .then((_) {
+          if (mounted) setState(() {});
+        })
+        .catchError((_) {});
   }
 
   Future<void> _load() async {
@@ -46,7 +52,8 @@ class _HealthScreenState extends State<HealthScreen> {
     final data = results[0];
     final profile = results[1];
 
-    final hasHealthGoals = profile?['build_healthier_habits'] == true ||
+    final hasHealthGoals =
+        profile?['build_healthier_habits'] == true ||
         profile?['improve_sleep'] == true ||
         profile?['stay_on_top_of_healthcare'] == true;
 
@@ -176,10 +183,15 @@ class _HealthScreenState extends State<HealthScreen> {
   }
 
   void _checkIn(Streak streak) {
-    if (streak.loggedForCurrentPeriod) return;
+    if (!streak.scheduledToday ||
+        streak.loggedToday ||
+        streak.loggedForCurrentPeriod)
+      return;
     setState(() {
       streak.checkIns.add(DateTime.now());
-      streak.currentStreak++;
+      if (streak.isDaily || streak.checkInsThisWeek >= streak.weeklyTarget) {
+        streak.currentStreak++;
+      }
       if (streak.currentStreak > streak.bestStreak) {
         streak.bestStreak = streak.currentStreak;
       }
@@ -212,6 +224,7 @@ class _HealthScreenState extends State<HealthScreen> {
       _saveHealthData();
     } else {
       setState(() {});
+      _saveHealthData();
     }
   }
 
@@ -245,7 +258,8 @@ class _HealthScreenState extends State<HealthScreen> {
 
   Future<void> _openFindCareSearch(String query) async {
     final uri = Uri.parse(
-        'https://www.google.com/search?q=${Uri.encodeComponent(query)}');
+      'https://www.google.com/search?q=${Uri.encodeComponent(query)}',
+    );
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
@@ -255,8 +269,12 @@ class _HealthScreenState extends State<HealthScreen> {
   List<_CheckupReminder> get _checkupReminders {
     final reminders = <_CheckupReminder>[];
 
-    void check(String key, String label,
-        {required List<String> dueSoon, required List<String> overdue}) {
+    void check(
+      String key,
+      String label, {
+      required List<String> dueSoon,
+      required List<String> overdue,
+    }) {
       final val = _checkups[key];
       if (val == null || val == 'na') return;
       if (overdue.contains(val)) {
@@ -267,16 +285,23 @@ class _HealthScreenState extends State<HealthScreen> {
     }
 
     // Primary care: yearly
-    check('primary_care', 'Primary care',
-        dueSoon: ['1_2yr'], overdue: ['2plus_yr']);
+    check(
+      'primary_care',
+      'Primary care',
+      dueSoon: ['1_2yr'],
+      overdue: ['2plus_yr'],
+    );
     // Dental: every 6 months
-    check('dental', 'Dental',
-        dueSoon: ['6_12mo'], overdue: ['1_2yr', '2plus_yr']);
+    check(
+      'dental',
+      'Dental',
+      dueSoon: ['6_12mo'],
+      overdue: ['1_2yr', '2plus_yr'],
+    );
     // OBGYN: yearly
     check('obgyn', 'OBGYN', dueSoon: ['1_2yr'], overdue: ['2plus_yr']);
     // Optometrist: every 1-2 years
-    check('optometrist', 'Optometrist',
-        dueSoon: [], overdue: ['2plus_yr']);
+    check('optometrist', 'Optometrist', dueSoon: [], overdue: ['2plus_yr']);
 
     return reminders;
   }
@@ -287,8 +312,7 @@ class _HealthScreenState extends State<HealthScreen> {
       return TabGateScreen(
         tabName: 'Health',
         icon: Icons.favorite,
-        tagline:
-            'Build habits, track streaks, and stay on top of your health.',
+        tagline: 'Build habits, track streaks, and stay on top of your health.',
         features: [
           (Icons.loop, 'Track daily and weekly streaks'),
           (Icons.spa_outlined, 'Log self-care routines'),
@@ -298,14 +322,18 @@ class _HealthScreenState extends State<HealthScreen> {
       );
     }
 
-    final nextAppointment =
-        appointments.isNotEmpty ? appointments.first : null;
-    final findCareQuery =
-        nextAppointment?.findCareQuery ?? 'doctors near me';
+    final nextAppointment = appointments.isNotEmpty ? appointments.first : null;
+    final findCareQuery = nextAppointment?.findCareQuery ?? 'doctors near me';
     final reminders = _checkupReminders;
 
     return Scaffold(
       backgroundColor: null, // inherits from theme
+      appBar: AppBar(
+        leading: Navigator.of(context).canPop() ? const BackButton() : null,
+        title: const Text('Health'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
       floatingActionButton: _hasHealthData
           ? FloatingActionButton(
               onPressed: _openOnboarding,
@@ -319,8 +347,10 @@ class _HealthScreenState extends State<HealthScreen> {
         child: _isLoading
             ? const Center(child: CircularProgressIndicator())
             : SingleChildScrollView(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 20,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -331,7 +361,9 @@ class _HealthScreenState extends State<HealthScreen> {
                         const Text(
                           'Health',
                           style: TextStyle(
-                              fontSize: 28, fontWeight: FontWeight.bold),
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         _FriendsIconButton(onTap: _openFriends),
                       ],
@@ -349,7 +381,9 @@ class _HealthScreenState extends State<HealthScreen> {
                           const Text(
                             'Self betterment',
                             style: TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.w600),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                           _AddButton(onTap: _openCreateStreak),
                         ],
@@ -378,8 +412,14 @@ class _HealthScreenState extends State<HealthScreen> {
                                   ),
                                   const SizedBox(height: 6),
                                   _CheckInButton(
-                                    done: streak.loggedForCurrentPeriod,
-                                    onTap: streak.loggedForCurrentPeriod
+                                    done:
+                                        streak.loggedToday ||
+                                        streak.loggedForCurrentPeriod,
+                                    scheduled: streak.scheduledToday,
+                                    onTap:
+                                        (!streak.scheduledToday ||
+                                            streak.loggedToday ||
+                                            streak.loggedForCurrentPeriod)
                                         ? null
                                         : () => _checkIn(streak),
                                   ),
@@ -394,7 +434,9 @@ class _HealthScreenState extends State<HealthScreen> {
                       const Text(
                         'Self-care this week',
                         style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w600),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       const SizedBox(height: 10),
                       if (selfCareTasks.isEmpty)
@@ -421,7 +463,9 @@ class _HealthScreenState extends State<HealthScreen> {
                         const Text(
                           'Health reminders',
                           style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.w600),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                         const SizedBox(height: 10),
                         ...reminders.map(
@@ -447,7 +491,9 @@ class _HealthScreenState extends State<HealthScreen> {
                           const Text(
                             'Upcoming appointments',
                             style: TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.w600),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                           Row(
                             children: [
@@ -456,21 +502,34 @@ class _HealthScreenState extends State<HealthScreen> {
                                   onTap: _openAddAppointment,
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(
-                                        horizontal: 10, vertical: 4),
+                                      horizontal: 10,
+                                      vertical: 4,
+                                    ),
                                     decoration: BoxDecoration(
-                                      color: Theme.of(context).colorScheme.primary,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
                                       borderRadius: BorderRadius.circular(20),
                                     ),
                                     child: Row(
                                       children: [
-                                        Icon(Icons.add,
-                                            size: 13,
-                                            color: Theme.of(context).colorScheme.onPrimary),
+                                        Icon(
+                                          Icons.add,
+                                          size: 13,
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onPrimary,
+                                        ),
                                         const SizedBox(width: 3),
-                                        Text('Add',
-                                            style: TextStyle(
-                                                fontSize: 12,
-                                                color: Theme.of(context).colorScheme.onPrimary)),
+                                        Text(
+                                          'Add',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.onPrimary,
+                                          ),
+                                        ),
                                       ],
                                     ),
                                   ),
@@ -478,15 +537,23 @@ class _HealthScreenState extends State<HealthScreen> {
                               else
                                 Row(
                                   children: [
-                                    Icon(Icons.event_outlined,
-                                        size: 14,
-                                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4)),
+                                    Icon(
+                                      Icons.event_outlined,
+                                      size: 14,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurface.withOpacity(0.4),
+                                    ),
                                     const SizedBox(width: 4),
                                     Text(
                                       'Google Calendar',
                                       style: TextStyle(
-                                          fontSize: 12,
-                                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4)),
+                                        fontSize: 12,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurface
+                                            .withOpacity(0.4),
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -504,7 +571,8 @@ class _HealthScreenState extends State<HealthScreen> {
                         _ConnectCalendarBanner(onTap: _connectCalendar)
                       else if (appointments.isEmpty)
                         const _MessageState(
-                            message: 'No health appointments in the next 90 days')
+                          message: 'No health appointments in the next 90 days',
+                        )
                       else
                         ...appointments.map(
                           (appt) => Padding(
@@ -516,7 +584,9 @@ class _HealthScreenState extends State<HealthScreen> {
                       // ── Crisis card ──
                       const SizedBox(height: 24),
                       _CrisisCard(
-                          onCall: _callCrisisLine, onText: _textCrisisLine),
+                        onCall: _callCrisisLine,
+                        onText: _textCrisisLine,
+                      ),
                     ],
 
                     const SizedBox(height: 80), // FAB clearance
@@ -542,10 +612,13 @@ class _SetupPrompt extends StatelessWidget {
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: Theme.of(context).cardColor,
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(20),
-          border:
-              Border.all(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.08), width: 1.5),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.08),
+            width: 1.5,
+          ),
         ),
         child: Column(
           children: [
@@ -568,12 +641,13 @@ class _SetupPrompt extends StatelessWidget {
               'Tell us your self-care routine, habits to track, and when you last saw a doctor.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                  fontSize: 13, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
+                fontSize: 13,
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+              ),
             ),
             const SizedBox(height: 16),
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.primary,
                 borderRadius: BorderRadius.circular(20),
@@ -581,9 +655,10 @@ class _SetupPrompt extends StatelessWidget {
               child: const Text(
                 "Let's do it",
                 style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
               ),
             ),
           ],
@@ -609,7 +684,8 @@ class _CheckupReminderCard extends StatelessWidget {
   String get _searchQuery {
     final label = reminder.label.toLowerCase();
     if (label.contains('dental')) return 'dentist near me';
-    if (label.contains('obgyn') || label.contains('ob/gyn')) return 'OBGYN near me';
+    if (label.contains('obgyn') || label.contains('ob/gyn'))
+      return 'OBGYN near me';
     if (label.contains('eye')) return 'eye doctor near me';
     if (label.contains('derm')) return 'dermatologist near me';
     return '${reminder.label} doctor near me';
@@ -618,7 +694,8 @@ class _CheckupReminderCard extends StatelessWidget {
   Future<void> _launch() async {
     final query = Uri.encodeComponent(_searchQuery);
     final url = Uri.parse('https://www.google.com/maps/search/$query');
-    if (await canLaunchUrl(url)) await launchUrl(url, mode: LaunchMode.externalApplication);
+    if (await canLaunchUrl(url))
+      await launchUrl(url, mode: LaunchMode.externalApplication);
   }
 
   @override
@@ -626,8 +703,9 @@ class _CheckupReminderCard extends StatelessWidget {
     final color = reminder.isOverdue
         ? const Color(0xFFFFEBEB)
         : const Color(0xFFFFF8E1);
-    final iconColor =
-        reminder.isOverdue ? const Color(0xFFD32F2F) : const Color(0xFFF57F17);
+    final iconColor = reminder.isOverdue
+        ? const Color(0xFFD32F2F)
+        : const Color(0xFFF57F17);
 
     return GestureDetector(
       onTap: _launch,
@@ -654,21 +732,29 @@ class _CheckupReminderCard extends StatelessWidget {
                   Text(
                     reminder.label,
                     style: const TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w600),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   Text(
                     reminder.isOverdue
                         ? 'Overdue — tap to find one near you'
                         : 'Coming up — tap to book soon',
                     style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.55)),
+                      fontSize: 12,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.55),
+                    ),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.north_east,
-                size: 16, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.55)),
+            Icon(
+              Icons.north_east,
+              size: 16,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.55),
+            ),
           ],
         ),
       ),
@@ -680,9 +766,14 @@ class _CheckupReminderCard extends StatelessWidget {
 
 class _CheckInButton extends StatelessWidget {
   final bool done;
+  final bool scheduled;
   final VoidCallback? onTap;
 
-  const _CheckInButton({required this.done, this.onTap});
+  const _CheckInButton({
+    required this.done,
+    required this.scheduled,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -692,16 +783,24 @@ class _CheckInButton extends StatelessWidget {
         width: 112,
         padding: const EdgeInsets.symmetric(vertical: 7),
         decoration: BoxDecoration(
-          color: done ? Theme.of(context).colorScheme.onSurface.withOpacity(0.06) : Colors.black,
+          color: done || !scheduled
+              ? Theme.of(context).colorScheme.onSurface.withOpacity(0.06)
+              : Colors.black,
           borderRadius: BorderRadius.circular(14),
         ),
         child: Center(
           child: Text(
-            done ? 'Logged ✓' : '+ Log today',
+            done
+                ? 'Logged ✓'
+                : scheduled
+                ? '+ Log today'
+                : 'Not scheduled',
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: done ? Theme.of(context).colorScheme.onSurface.withOpacity(0.4) : Colors.white,
+              color: done || !scheduled
+                  ? Theme.of(context).colorScheme.onSurface.withOpacity(0.4)
+                  : Colors.white,
             ),
           ),
         ),
@@ -725,14 +824,17 @@ class _EmptyState extends StatelessWidget {
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: Theme.of(context).cardColor,
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Center(
           child: Text(
             message,
             style: TextStyle(
-                fontSize: 13, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.45)),
+              fontSize: 13,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.45),
+            ),
           ),
         ),
       ),
@@ -750,14 +852,17 @@ class _EmptyCard extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Theme.of(context).cardColor,
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Center(
         child: Text(
           message,
-          style:
-              TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.45)),
+          style: TextStyle(
+            fontSize: 13,
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.45),
+          ),
         ),
       ),
     );
@@ -774,14 +879,17 @@ class _MessageState extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: Theme.of(context).cardColor,
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Center(
         child: Text(
           message,
-          style:
-              TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.45)),
+          style: TextStyle(
+            fontSize: 13,
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.45),
+          ),
         ),
       ),
     );
@@ -821,11 +929,7 @@ class _StreakCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Icon(
-                  streak.icon,
-                  size: 20,
-                  color: done ? doneFg : notDoneFg,
-                ),
+                Icon(streak.icon, size: 20, color: done ? doneFg : notDoneFg),
                 if (streak.sharedWithFriends)
                   Icon(
                     Icons.people_alt,
@@ -906,7 +1010,9 @@ class _AddButton extends StatelessWidget {
         width: 28,
         height: 28,
         decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary, shape: BoxShape.circle),
+          color: Theme.of(context).colorScheme.primary,
+          shape: BoxShape.circle,
+        ),
         child: const Icon(Icons.add, size: 16, color: Colors.white),
       ),
     );
@@ -925,18 +1031,25 @@ class _FriendsIconButton extends StatelessWidget {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(color: Theme.of(context).cardColor,
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
           children: [
-            Icon(Icons.people_outline, size: 16, color: Theme.of(context).colorScheme.onSurface),
+            Icon(
+              Icons.people_outline,
+              size: 16,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
             if (count > 0) ...[
               const SizedBox(width: 6),
               Text(
                 '$count',
                 style: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w600),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ],
@@ -959,7 +1072,9 @@ class _SelfCareRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-          color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(16)),
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Row(
         children: [
           GestureDetector(
@@ -973,7 +1088,11 @@ class _SelfCareRow extends StatelessWidget {
                 border: task.isDone
                     ? null
                     : Border.all(
-                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.25), width: 1.5),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withOpacity(0.25),
+                        width: 1.5,
+                      ),
               ),
               child: task.isDone
                   ? const Icon(Icons.check, size: 14, color: Colors.white)
@@ -984,8 +1103,9 @@ class _SelfCareRow extends StatelessWidget {
           Icon(
             task.icon,
             size: 17,
-            color:
-                task.isDone ? Theme.of(context).colorScheme.onSurface.withOpacity(0.35) : Colors.black,
+            color: task.isDone
+                ? Theme.of(context).colorScheme.onSurface.withOpacity(0.35)
+                : Colors.black,
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -996,15 +1116,16 @@ class _SelfCareRow extends StatelessWidget {
                 color: task.isDone
                     ? Theme.of(context).colorScheme.onSurface.withOpacity(0.4)
                     : Colors.black,
-                decoration:
-                    task.isDone ? TextDecoration.lineThrough : null,
+                decoration: task.isDone ? TextDecoration.lineThrough : null,
               ),
             ),
           ),
           Text(
             task.statusLabel,
             style: TextStyle(
-                fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4)),
+              fontSize: 12,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+            ),
           ),
         ],
       ),
@@ -1021,13 +1142,14 @@ class _FindCareBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label =
-        query.contains('therapist') ? 'a therapist' : 'a doctor';
+    final label = query.contains('therapist') ? 'a therapist' : 'a doctor';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-          color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(16)),
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Row(
         children: [
           Container(
@@ -1043,12 +1165,14 @@ class _FindCareBanner extends StatelessWidget {
           Expanded(
             child: Text(
               'Need to find $label?',
-              style:
-                  const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
             ),
           ),
-          Icon(Icons.north_east,
-              size: 16, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4)),
+          Icon(
+            Icons.north_east,
+            size: 16,
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+          ),
         ],
       ),
     );
@@ -1076,7 +1200,8 @@ class _AppointmentRow extends StatelessWidget {
   Future<void> _open() async {
     if (appointment.htmlLink == null) return;
     final uri = Uri.parse(appointment.htmlLink!);
-    if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (await canLaunchUrl(uri))
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   @override
@@ -1086,8 +1211,9 @@ class _AppointmentRow extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
-            borderRadius: BorderRadius.circular(16)),
+          color: Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(16),
+        ),
         child: Row(
           children: [
             Container(
@@ -1097,33 +1223,37 @@ class _AppointmentRow extends StatelessWidget {
                 color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(_icon,
-                  size: 18, color: Theme.of(context).colorScheme.onSurface),
+              child: Icon(
+                _icon,
+                size: 18,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(appointment.summary,
-                      style: const TextStyle(fontSize: 14)),
+                  Text(
+                    appointment.summary,
+                    style: const TextStyle(fontSize: 14),
+                  ),
                   Text(
                     appointment.dateLabel,
                     style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withOpacity(0.45)),
+                      fontSize: 12,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.45),
+                    ),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right,
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurface
-                    .withOpacity(0.3)),
+            Icon(
+              Icons.chevron_right,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
+            ),
           ],
         ),
       ),
@@ -1149,10 +1279,8 @@ class _ConnectCalendarBanner extends StatelessWidget {
           color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-              color: Theme.of(context)
-                  .colorScheme
-                  .onSurface
-                  .withOpacity(0.1)),
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.1),
+          ),
         ),
         child: Row(
           children: [
@@ -1163,32 +1291,37 @@ class _ConnectCalendarBanner extends StatelessWidget {
                 color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(Icons.event_available_outlined,
-                  size: 20, color: Theme.of(context).colorScheme.onSurface),
+              child: Icon(
+                Icons.event_available_outlined,
+                size: 20,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Connect Google Calendar',
-                      style: TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.w600)),
-                  Text('See your doctor & therapy appointments here',
-                      style: TextStyle(
-                          fontSize: 12,
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withOpacity(0.5))),
+                  const Text(
+                    'Connect Google Calendar',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  Text(
+                    'See your doctor & therapy appointments here',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.5),
+                    ),
+                  ),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right,
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurface
-                    .withOpacity(0.3)),
+            Icon(
+              Icons.chevron_right,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
+            ),
           ],
         ),
       ),
@@ -1223,8 +1356,18 @@ class _AddAppointmentSheetState extends State<_AddAppointmentSheet> {
 
   String get _dateLabel {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${months[_date.month - 1]} ${_date.day}, ${_date.year}';
   }
@@ -1247,8 +1390,7 @@ class _AddAppointmentSheetState extends State<_AddAppointmentSheet> {
   }
 
   Future<void> _pickTime() async {
-    final picked =
-        await showTimePicker(context: context, initialTime: _time);
+    final picked = await showTimePicker(context: context, initialTime: _time);
     if (picked != null) setState(() => _time = picked);
   }
 
@@ -1257,7 +1399,12 @@ class _AddAppointmentSheetState extends State<_AddAppointmentSheet> {
     if (title.isEmpty) return;
     setState(() => _saving = true);
     final start = DateTime(
-        _date.year, _date.month, _date.day, _time.hour, _time.minute);
+      _date.year,
+      _date.month,
+      _date.day,
+      _time.hour,
+      _time.minute,
+    );
     final ok = await CalendarService.createEvent(
       title: title,
       start: start,
@@ -1294,14 +1441,18 @@ class _AddAppointmentSheetState extends State<_AddAppointmentSheet> {
               width: 36,
               height: 4,
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.15),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
           ),
           const SizedBox(height: 20),
-          const Text('New appointment',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+          const Text(
+            'New appointment',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+          ),
           const SizedBox(height: 16),
           TextField(
             controller: _titleController,
@@ -1315,8 +1466,10 @@ class _AddAppointmentSheetState extends State<_AddAppointmentSheet> {
                 borderRadius: BorderRadius.circular(14),
                 borderSide: BorderSide.none,
               ),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
+              ),
             ),
           ),
           const SizedBox(height: 10),
@@ -1326,7 +1479,9 @@ class _AddAppointmentSheetState extends State<_AddAppointmentSheet> {
                 child: GestureDetector(
                   onTap: _pickDate,
                   child: _PickerChip(
-                      icon: Icons.calendar_today_outlined, label: _dateLabel),
+                    icon: Icons.calendar_today_outlined,
+                    label: _dateLabel,
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -1334,7 +1489,9 @@ class _AddAppointmentSheetState extends State<_AddAppointmentSheet> {
                 child: GestureDetector(
                   onTap: _pickTime,
                   child: _PickerChip(
-                      icon: Icons.access_time_outlined, label: _timeLabel),
+                    icon: Icons.access_time_outlined,
+                    label: _timeLabel,
+                  ),
                 ),
               ),
             ],
@@ -1351,8 +1508,10 @@ class _AddAppointmentSheetState extends State<_AddAppointmentSheet> {
                 borderRadius: BorderRadius.circular(14),
                 borderSide: BorderSide.none,
               ),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
+              ),
             ),
           ),
           const SizedBox(height: 10),
@@ -1367,8 +1526,10 @@ class _AddAppointmentSheetState extends State<_AddAppointmentSheet> {
                 borderRadius: BorderRadius.circular(14),
                 borderSide: BorderSide.none,
               ),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
+              ),
             ),
           ),
           const SizedBox(height: 20),
@@ -1381,7 +1542,8 @@ class _AddAppointmentSheetState extends State<_AddAppointmentSheet> {
                 backgroundColor: Theme.of(context).colorScheme.primary,
                 foregroundColor: Theme.of(context).colorScheme.onPrimary,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
+                  borderRadius: BorderRadius.circular(16),
+                ),
                 elevation: 0,
               ),
               child: _saving
@@ -1389,12 +1551,17 @@ class _AddAppointmentSheetState extends State<_AddAppointmentSheet> {
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Theme.of(context).colorScheme.onPrimary),
+                        strokeWidth: 2,
+                        color: Theme.of(context).colorScheme.onPrimary,
+                      ),
                     )
-                  : const Text('Save to Google Calendar',
+                  : const Text(
+                      'Save to Google Calendar',
                       style: TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.w600)),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
             ),
           ),
         ],
@@ -1419,9 +1586,11 @@ class _PickerChip extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(icon,
-              size: 16,
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
+          Icon(
+            icon,
+            size: 16,
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+          ),
           const SizedBox(width: 8),
           Text(label, style: const TextStyle(fontSize: 13)),
         ],
@@ -1443,22 +1612,27 @@ class _CrisisCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.primary, borderRadius: BorderRadius.circular(18)),
+        color: Theme.of(context).colorScheme.primary,
+        borderRadius: BorderRadius.circular(18),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
             'Need to talk to someone now?',
             style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: Colors.white),
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
             '988 Suicide & Crisis Lifeline · available 24/7',
             style: TextStyle(
-                fontSize: 12, color: Colors.white.withOpacity(0.6)),
+              fontSize: 12,
+              color: Colors.white.withOpacity(0.6),
+            ),
           ),
           const SizedBox(height: 12),
           Row(
@@ -1467,12 +1641,15 @@ class _CrisisCard extends StatelessWidget {
                 child: OutlinedButton.icon(
                   onPressed: onCall,
                   icon: const Icon(Icons.call, size: 16, color: Colors.white),
-                  label: const Text('Call 988',
-                      style: TextStyle(color: Colors.white)),
+                  label: const Text(
+                    'Call 988',
+                    style: TextStyle(color: Colors.white),
+                  ),
                   style: OutlinedButton.styleFrom(
                     side: BorderSide(color: Colors.white.withOpacity(0.4)),
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(24)),
+                      borderRadius: BorderRadius.circular(24),
+                    ),
                   ),
                 ),
               ),
@@ -1480,14 +1657,20 @@ class _CrisisCard extends StatelessWidget {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: onText,
-                  icon: const Icon(Icons.message_outlined,
-                      size: 16, color: Colors.white),
-                  label: const Text('Text 988',
-                      style: TextStyle(color: Colors.white)),
+                  icon: const Icon(
+                    Icons.message_outlined,
+                    size: 16,
+                    color: Colors.white,
+                  ),
+                  label: const Text(
+                    'Text 988',
+                    style: TextStyle(color: Colors.white),
+                  ),
                   style: OutlinedButton.styleFrom(
                     side: BorderSide(color: Colors.white.withOpacity(0.4)),
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(24)),
+                      borderRadius: BorderRadius.circular(24),
+                    ),
                   ),
                 ),
               ),
@@ -1569,14 +1752,17 @@ class _CreateStreakSheetState extends State<_CreateStreakSheet> {
                   borderRadius: BorderRadius.circular(14),
                   borderSide: BorderSide.none,
                 ),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
               ),
             ),
             const SizedBox(height: 18),
-            const Text('Icon',
-                style:
-                    TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            const Text(
+              'Icon',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: 10),
             Wrap(
               spacing: 10,
@@ -1595,17 +1781,22 @@ class _CreateStreakSheetState extends State<_CreateStreakSheet> {
                           : th.colorScheme.surface,
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(icon,
-                        size: 20,
-                        color: selected ? th.colorScheme.onPrimary : th.colorScheme.onSurface),
+                    child: Icon(
+                      icon,
+                      size: 20,
+                      color: selected
+                          ? th.colorScheme.onPrimary
+                          : th.colorScheme.onSurface,
+                    ),
                   ),
                 );
               }).toList(),
             ),
             const SizedBox(height: 20),
-            const Text('How often?',
-                style:
-                    TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            const Text(
+              'How often?',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: 10),
             Row(
               children: [
@@ -1613,8 +1804,7 @@ class _CreateStreakSheetState extends State<_CreateStreakSheet> {
                   child: _CadenceOption(
                     label: 'Daily',
                     selected: cadence == StreakCadence.daily,
-                    onTap: () =>
-                        setState(() => cadence = StreakCadence.daily),
+                    onTap: () => setState(() => cadence = StreakCadence.daily),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -1622,8 +1812,7 @@ class _CreateStreakSheetState extends State<_CreateStreakSheet> {
                   child: _CadenceOption(
                     label: 'Weekly',
                     selected: cadence == StreakCadence.weekly,
-                    onTap: () =>
-                        setState(() => cadence = StreakCadence.weekly),
+                    onTap: () => setState(() => cadence = StreakCadence.weekly),
                   ),
                 ),
               ],
@@ -1632,8 +1821,12 @@ class _CreateStreakSheetState extends State<_CreateStreakSheet> {
               const SizedBox(height: 16),
               Text(
                 '$weeklyTarget time${weeklyTarget == 1 ? '' : 's'} per week',
-                style:
-                    TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.54)),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.54),
+                ),
               ),
               Slider(
                 value: weeklyTarget.toDouble(),
@@ -1641,8 +1834,7 @@ class _CreateStreakSheetState extends State<_CreateStreakSheet> {
                 max: 7,
                 divisions: 6,
                 activeColor: Colors.black,
-                onChanged: (v) =>
-                    setState(() => weeklyTarget = v.round()),
+                onChanged: (v) => setState(() => weeklyTarget = v.round()),
               ),
             ],
             const SizedBox(height: 8),
@@ -1652,12 +1844,14 @@ class _CreateStreakSheetState extends State<_CreateStreakSheet> {
                 value: shareWithFriends,
                 onChanged: (v) => setState(() => shareWithFriends = v),
                 activeColor: Colors.black,
-                title: const Text('Share with friends',
-                    style: TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w500)),
+                title: const Text(
+                  'Share with friends',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                ),
                 subtitle: const Text(
-                    "They'll see your streak count and can compete",
-                    style: TextStyle(fontSize: 12)),
+                  "They'll see your streak count and can compete",
+                  style: TextStyle(fontSize: 12),
+                ),
               ),
             const SizedBox(height: 12),
             SizedBox(
@@ -1669,11 +1863,13 @@ class _CreateStreakSheetState extends State<_CreateStreakSheet> {
                   backgroundColor: Theme.of(context).colorScheme.primary,
                   foregroundColor: Theme.of(context).colorScheme.onPrimary,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(28)),
+                    borderRadius: BorderRadius.circular(28),
+                  ),
                 ),
-                child: const Text('Create streak',
-                    style: TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w600)),
+                child: const Text(
+                  'Create streak',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
               ),
             ),
           ],
@@ -1688,8 +1884,11 @@ class _CadenceOption extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
-  const _CadenceOption(
-      {required this.label, required this.selected, required this.onTap});
+  const _CadenceOption({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1708,7 +1907,9 @@ class _CadenceOption extends StatelessWidget {
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: selected ? th.colorScheme.onPrimary : th.colorScheme.onSurface,
+              color: selected
+                  ? th.colorScheme.onPrimary
+                  : th.colorScheme.onSurface,
             ),
           ),
         ),
@@ -1730,6 +1931,27 @@ class _StreakDetailSheet extends StatefulWidget {
 
 class _StreakDetailSheetState extends State<_StreakDetailSheet> {
   late bool shareWithFriends = widget.streak.sharedWithFriends;
+  final Map<String, Map<String, dynamic>?> _sharedStatuses = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSharedStatuses();
+  }
+
+  Future<void> _loadSharedStatuses() async {
+    for (final friend in FriendService.instance.friends) {
+      try {
+        _sharedStatuses[friend.id] = await FriendService.instance.sharedHabit(
+          friend.id,
+          widget.streak.name,
+        );
+      } catch (_) {
+        _sharedStatuses[friend.id] = null;
+      }
+    }
+    if (mounted) setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1745,8 +1967,7 @@ class _StreakDetailSheetState extends State<_StreakDetailSheet> {
           children: [
             Row(
               children: [
-                _StatPill(
-                    label: 'Current', value: '${streak.currentStreak}'),
+                _StatPill(label: 'Current', value: '${streak.currentStreak}'),
                 const SizedBox(width: 10),
                 _StatPill(label: 'Best', value: '${streak.bestStreak}'),
               ],
@@ -1761,9 +1982,10 @@ class _StreakDetailSheetState extends State<_StreakDetailSheet> {
                   streak.sharedWithFriends = v;
                 },
                 activeColor: Colors.black,
-                title: const Text('Share with friends',
-                    style: TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w500)),
+                title: const Text(
+                  'Share with friends',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                ),
               ),
             if (shareWithFriends && hasFriends) ...[
               const SizedBox(height: 8),
@@ -1772,9 +1994,11 @@ class _StreakDetailSheetState extends State<_StreakDetailSheet> {
                   padding: const EdgeInsets.only(bottom: 8),
                   child: _FriendCompareRow(
                     friendName: f.name,
-                    myStreak: streak.currentStreak,
-                    friendStreak: (streak.currentStreak - 2)
-                        .clamp(0, streak.currentStreak + 5),
+                    friendStreak:
+                        _sharedStatuses[f.id]?['current_streak'] as int?,
+                    isWeekly: streak.cadence == StreakCadence.weekly,
+                    activeThisWeek:
+                        _sharedStatuses[f.id]?['active_this_week'] == true,
                   ),
                 ),
               ),
@@ -1789,7 +2013,8 @@ class _StreakDetailSheetState extends State<_StreakDetailSheet> {
                   foregroundColor: Colors.red,
                   side: const BorderSide(color: Colors.red),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(25)),
+                    borderRadius: BorderRadius.circular(25),
+                  ),
                 ),
                 child: const Text('Delete streak'),
               ),
@@ -1818,12 +2043,17 @@ class _StatPill extends StatelessWidget {
         ),
         child: Column(
           children: [
-            Text(value,
-                style: const TextStyle(
-                    fontSize: 22, fontWeight: FontWeight.bold)),
-            Text(label,
-                style: TextStyle(
-                    fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5))),
+            Text(
+              value,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+              ),
+            ),
           ],
         ),
       ),
@@ -1833,18 +2063,19 @@ class _StatPill extends StatelessWidget {
 
 class _FriendCompareRow extends StatelessWidget {
   final String friendName;
-  final int myStreak;
-  final int friendStreak;
+  final int? friendStreak;
+  final bool isWeekly;
+  final bool activeThisWeek;
 
   const _FriendCompareRow({
     required this.friendName,
-    required this.myStreak,
     required this.friendStreak,
+    required this.isWeekly,
+    required this.activeThisWeek,
   });
 
   @override
   Widget build(BuildContext context) {
-    final ahead = myStreak >= friendStreak;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
@@ -1854,23 +2085,24 @@ class _FriendCompareRow extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Text(friendName,
-                style: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w500)),
-          ),
-          Text(
-            '$friendStreak',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: ahead ? Theme.of(context).colorScheme.onSurface.withOpacity(0.54) : Colors.black,
+            child: Text(
+              friendName,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
             ),
           ),
-          const SizedBox(width: 8),
-          Icon(
-            ahead ? Icons.emoji_events_outlined : Icons.trending_up,
-            size: 16,
-            color: ahead ? Theme.of(context).colorScheme.onSurface.withOpacity(0.38) : Colors.green,
+          Text(
+            friendStreak == null
+                ? 'Not shared'
+                : '${activeThisWeek ? 'Active' : 'At risk'} · $friendStreak ${isWeekly ? 'wks' : 'days'}',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: friendStreak == null
+                  ? Theme.of(context).colorScheme.onSurface.withOpacity(0.5)
+                  : activeThisWeek
+                  ? Colors.green
+                  : Colors.orange,
+            ),
           ),
         ],
       ),
@@ -1890,6 +2122,34 @@ class _FriendsSheet extends StatefulWidget {
 class _FriendsSheetState extends State<_FriendsSheet> {
   final TextEditingController codeController = TextEditingController();
   String? errorText;
+  String? myCode;
+  List<StreakFriend> _friends = [];
+  bool _loading = true;
+  bool _working = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final results = await Future.wait([
+        FriendService.instance.getOrCreateMyInviteCode(),
+        FriendService.instance.loadFriends(),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        myCode = results[0] as String;
+        _friends = results[1] as List<StreakFriend>;
+      });
+    } catch (error) {
+      if (mounted) setState(() => errorText = error.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -1897,24 +2157,36 @@ class _FriendsSheetState extends State<_FriendsSheet> {
     super.dispose();
   }
 
-  void _connect() {
-    final friend =
-        FriendService.instance.connectWithCode(codeController.text);
-    if (friend == null) {
-      setState(() => errorText =
-          "That code doesn't look right — check and try again");
-      return;
+  Future<void> _connect() async {
+    if (_working) return;
+    setState(() => _working = true);
+    try {
+      final friend = await FriendService.instance.connectWithCode(
+        codeController.text,
+      );
+      if (!mounted) return;
+      if (friend == null) {
+        setState(
+          () =>
+              errorText = "That code doesn't look right — check and try again",
+        );
+        return;
+      }
+      setState(() {
+        errorText = null;
+        codeController.clear();
+        _friends = FriendService.instance.friends;
+      });
+    } catch (error) {
+      if (mounted) setState(() => errorText = error.toString());
+    } finally {
+      if (mounted) setState(() => _working = false);
     }
-    setState(() {
-      errorText = null;
-      codeController.clear();
-    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final myCode = FriendService.instance.getOrCreateMyInviteCode();
-    final friends = FriendService.instance.friends;
+    final friends = _friends;
 
     return _BottomSheetScaffold(
       title: 'Friends',
@@ -1923,9 +2195,10 @@ class _FriendsSheetState extends State<_FriendsSheet> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Your invite code',
-                style:
-                    TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            const Text(
+              'Your invite code',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: 10),
             Container(
               width: double.infinity,
@@ -1937,7 +2210,7 @@ class _FriendsSheetState extends State<_FriendsSheet> {
               child: Column(
                 children: [
                   Text(
-                    myCode,
+                    myCode ?? (_loading ? '…' : 'Unavailable'),
                     style: const TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
@@ -1949,16 +2222,18 @@ class _FriendsSheetState extends State<_FriendsSheet> {
                   Text(
                     'Share this with a friend to connect',
                     style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.white.withOpacity(0.6)),
+                      fontSize: 12,
+                      color: Colors.white.withOpacity(0.6),
+                    ),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 20),
-            const Text('Have a code?',
-                style:
-                    TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            const Text(
+              'Have a code?',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: 10),
             Row(
               children: [
@@ -1976,7 +2251,9 @@ class _FriendsSheetState extends State<_FriendsSheet> {
                         borderSide: BorderSide.none,
                       ),
                       contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 14),
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
                     ),
                   ),
                 ),
@@ -1984,14 +2261,21 @@ class _FriendsSheetState extends State<_FriendsSheet> {
                 SizedBox(
                   height: 50,
                   child: ElevatedButton(
-                    onPressed: _connect,
+                    onPressed: _working || _loading ? null : _connect,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Theme.of(context).colorScheme.primary,
                       foregroundColor: Theme.of(context).colorScheme.onPrimary,
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
-                    child: const Text('Connect'),
+                    child: _working
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Connect'),
                   ),
                 ),
               ],
@@ -2000,16 +2284,19 @@ class _FriendsSheetState extends State<_FriendsSheet> {
             if (friends.isEmpty)
               const _MessageState(message: 'No friends connected yet')
             else ...[
-              const Text('Connected',
-                  style: TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w600)),
+              const Text(
+                'Connected',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
               const SizedBox(height: 10),
               ...friends.map(
                 (f) => Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 12),
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
                     decoration: BoxDecoration(
                       color: Theme.of(context).colorScheme.surface,
                       borderRadius: BorderRadius.circular(14),
@@ -2019,8 +2306,11 @@ class _FriendsSheetState extends State<_FriendsSheet> {
                         const Icon(Icons.person_outline, size: 18),
                         const SizedBox(width: 10),
                         Expanded(
-                            child: Text(f.name,
-                                style: const TextStyle(fontSize: 14))),
+                          child: Text(
+                            f.name,
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -2060,14 +2350,17 @@ class _BottomSheetScaffold extends StatelessWidget {
               width: 36,
               height: 4,
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.15),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
             const SizedBox(height: 16),
-            Text(title,
-                style: const TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(
+              title,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 16),
             child,
           ],

@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import '../services/supabase_service.dart';
 import '../services/ai_service.dart';
 import '../models/self_care_task.dart';
-import '../config/api_config.dart';
-import '../theme/kloudy_theme.dart' show kGold, kGoldLight, kInk, kDimText, kBorder, kCard, kSurface;
+import '../theme/kloudy_theme.dart'
+    show kGold, kGoldLight, kInk, kDimText, kBorder, kCard, kSurface;
 import 'mindset_unlock_screen.dart';
 import 'tab_gate_screen.dart';
 
@@ -16,14 +16,17 @@ class _MoodEntry {
 
   _MoodEntry({required this.date, required this.mood, required this.energy});
 
-  Map<String, dynamic> toJson() =>
-      {'date': date, 'mood': mood, 'energy': energy};
+  Map<String, dynamic> toJson() => {
+    'date': date,
+    'mood': mood,
+    'energy': energy,
+  };
 
   factory _MoodEntry.fromJson(Map<String, dynamic> j) => _MoodEntry(
-        date: j['date'] as String,
-        mood: j['mood'] as int,
-        energy: j['energy'] as int,
-      );
+    date: j['date'] as String,
+    mood: j['mood'] as int,
+    energy: j['energy'] as int,
+  );
 }
 
 // ── Fun self-care activities ───────────────────────────────────────────────
@@ -41,13 +44,21 @@ const _activities = [
   _Activity(Icons.phone_outlined, 'Call someone you love', Color(0xFFD4E8EE)),
   _Activity(Icons.spa_outlined, 'Stretch 10 min', Color(0xFFEDD8F0)),
   _Activity(Icons.music_note_outlined, 'Put on a playlist', Color(0xFFF0E8C8)),
-  _Activity(Icons.face_retouching_natural, 'Do your skincare', Color(0xFFF0D8D4)),
+  _Activity(
+    Icons.face_retouching_natural,
+    'Do your skincare',
+    Color(0xFFF0D8D4),
+  ),
   _Activity(Icons.local_cafe_outlined, 'Make yourself tea', Color(0xFFEEE4CC)),
   _Activity(Icons.edit_note_outlined, 'Write it down', Color(0xFFD8E4F4)),
   _Activity(Icons.shower_outlined, 'Take a long shower', Color(0xFFD4EEE8)),
   _Activity(Icons.back_hand_outlined, 'Do your nails', Color(0xFFF4D4E8)),
   _Activity(Icons.book_outlined, 'Read 20 min', Color(0xFFD8E8D4)),
-  _Activity(Icons.cleaning_services_outlined, 'Tidy one space', Color(0xFFEAE4D4)),
+  _Activity(
+    Icons.cleaning_services_outlined,
+    'Tidy one space',
+    Color(0xFFEAE4D4),
+  ),
   _Activity(Icons.tv_outlined, 'Watch a comfort show', Color(0xFFD4D8F0)),
   _Activity(Icons.water_drop_outlined, 'Drink extra water', Color(0xFFCCE8F4)),
   _Activity(Icons.self_improvement_outlined, 'Meditate', Color(0xFFEED8F0)),
@@ -153,12 +164,18 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
   Color _moodColor(int? mood) {
     if (mood == null) return kBorder;
     switch (mood) {
-      case 1: return const Color(0xFFE8C4C4);
-      case 2: return const Color(0xFFEDD4B0);
-      case 3: return const Color(0xFFEDE0C0);
-      case 4: return const Color(0xFFC8DCB8);
-      case 5: return const Color(0xFFF0D880);
-      default: return kBorder;
+      case 1:
+        return const Color(0xFFE8C4C4);
+      case 2:
+        return const Color(0xFFEDD4B0);
+      case 3:
+        return const Color(0xFFEDE0C0);
+      case 4:
+        return const Color(0xFFC8DCB8);
+      case 5:
+        return const Color(0xFFF0D880);
+      default:
+        return kBorder;
     }
   }
 
@@ -205,9 +222,9 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
     final mindsetGoals = answers?['mindset_goals'] as Map<String, dynamic>?;
     final challenges =
         (mindsetGoals?['mental_challenges'] as List<dynamic>?)
-                ?.map((e) => e as String)
-                .toList() ??
-            [];
+            ?.map((e) => e as String)
+            .toList() ??
+        [];
 
     // Mood log
     final rawLog = (mindset?['mood_log'] as List<dynamic>? ?? [])
@@ -218,8 +235,7 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
     // Today's reflection
     final reflections = (mindset?['reflections'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();
-    final todayR =
-        reflections.where((r) => r['date'] == _today).firstOrNull;
+    final todayR = reflections.where((r) => r['date'] == _today).firstOrNull;
 
     // Self-care tasks from health data
     final tasks = (health?['self_care'] as List<dynamic>? ?? [])
@@ -229,8 +245,9 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
     // Activity log
     final activityLog = (mindset?['activity_log'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();
-    final todayActivityEntry =
-        activityLog.where((e) => e['date'] == _today).firstOrNull;
+    final todayActivityEntry = activityLog
+        .where((e) => e['date'] == _today)
+        .firstOrNull;
     final completedToday =
         (todayActivityEntry?['completed'] as List<dynamic>? ?? [])
             .map((e) => e as String)
@@ -259,7 +276,6 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
     setState(() => _reflectionLoading = true);
     try {
       final prompt = await AiService.generateReflectionPrompt(
-        apiKey: kAnthropicApiKey,
         challenges: _mindsetChallenges,
       );
       if (!mounted) return;
@@ -302,7 +318,6 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
     setState(() => _reflectionSubmitting = true);
     try {
       final reply = await AiService.respondToReflection(
-        apiKey: kAnthropicApiKey,
         prompt: _reflectionPrompt!,
         userResponse: text,
       );
@@ -327,7 +342,7 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
       rawLog.add({
         'date': _today,
         'mood': _todayMood,
-        'energy': _todayEnergy ?? 3
+        'energy': _todayEnergy ?? 3,
       });
     }
     final reflections = (existing['reflections'] as List<dynamic>? ?? [])
@@ -384,13 +399,14 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
     if (answers != null) {
       final profile = await SupabaseService.fetchProfile();
       if (!mounted) return;
-      final existing =
-          Map<String, dynamic>.from(profile?['answers'] as Map? ?? {});
+      final existing = Map<String, dynamic>.from(
+        profile?['answers'] as Map? ?? {},
+      );
       existing['mindset_goals'] = answers;
       await SupabaseService.client
           .from('profiles')
-          .update({'answers': existing}).eq(
-              'id', SupabaseService.currentUser!.id);
+          .update({'answers': existing})
+          .eq('id', SupabaseService.currentUser!.id);
     }
     if (!mounted) return;
     setState(() => _isUnlocked = true);
@@ -405,8 +421,10 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
       return Scaffold(
         backgroundColor: null,
         body: Center(
-            child: CircularProgressIndicator(
-                color: Theme.of(context).colorScheme.primary)),
+          child: CircularProgressIndicator(
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ),
       );
     }
 
@@ -426,6 +444,12 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
 
     return Scaffold(
       backgroundColor: null,
+      appBar: AppBar(
+        leading: Navigator.of(context).canPop() ? const BackButton() : null,
+        title: const Text('Mindset'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 24, 20, 80),
@@ -469,8 +493,8 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
     final greeting = hour < 12
         ? 'Good morning'
         : hour < 17
-            ? 'Good afternoon'
-            : 'Good evening';
+        ? 'Good afternoon'
+        : 'Good evening';
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -491,7 +515,10 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
               Text(
                 'Mindset',
                 style: TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.w600, color: kGold),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: kGold,
+                ),
               ),
             ],
           ),
@@ -525,28 +552,34 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
                   Text(
                     "Today: ${_moodLabels[_todayMood! - 1]}",
                     style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w700),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   if (_todayEnergy != null)
                     Text(
-                      'Energy ${_todayEnergy! >= 4 ? 'high' : _todayEnergy! >= 3 ? 'moderate' : 'low'}',
+                      'Energy ${_todayEnergy! >= 4
+                          ? 'high'
+                          : _todayEnergy! >= 3
+                          ? 'moderate'
+                          : 'low'}',
                       style: TextStyle(
-                          fontSize: 13,
-                          color: kInk.withOpacity(0.6)),
+                        fontSize: 13,
+                        color: kInk.withOpacity(0.6),
+                      ),
                     ),
                 ],
               ),
             ),
             GestureDetector(
-              onTap: () =>
-                  setState(() {
-                    _todayMood = null;
-                    _todayEnergy = null;
-                  }),
-              child: Text('Edit',
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: kInk.withOpacity(0.5))),
+              onTap: () => setState(() {
+                _todayMood = null;
+                _todayEnergy = null;
+              }),
+              child: Text(
+                'Edit',
+                style: TextStyle(fontSize: 12, color: kInk.withOpacity(0.5)),
+              ),
             ),
           ],
         ),
@@ -567,12 +600,15 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
           children: [
             Row(
               children: [
-                Text(_moodEmojis[_pendingMood! - 1],
-                    style: const TextStyle(fontSize: 22)),
+                Text(
+                  _moodEmojis[_pendingMood! - 1],
+                  style: const TextStyle(fontSize: 22),
+                ),
                 const SizedBox(width: 8),
-                const Text('How\'s your energy?',
-                    style:
-                        TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                const Text(
+                  'How\'s your energy?',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                ),
               ],
             ),
             const SizedBox(height: 14),
@@ -592,10 +628,13 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
                           shape: BoxShape.circle,
                         ),
                         child: Center(
-                          child: Text('$level',
-                              style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700)),
+                          child: Text(
+                            '$level',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -603,14 +642,13 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
                         level == 1
                             ? 'Empty'
                             : level == 2
-                                ? 'Low'
-                                : level == 3
-                                    ? 'Okay'
-                                    : level == 4
-                                        ? 'Good'
-                                        : 'Full',
-                        style: TextStyle(
-                            fontSize: 10, color: kDimText),
+                            ? 'Low'
+                            : level == 3
+                            ? 'Okay'
+                            : level == 4
+                            ? 'Good'
+                            : 'Full',
+                        style: TextStyle(fontSize: 10, color: kDimText),
                       ),
                     ],
                   ),
@@ -633,11 +671,15 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('How are you feeling?',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          const Text(
+            'How are you feeling?',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          ),
           const SizedBox(height: 4),
-          Text('Tap to check in',
-              style: TextStyle(fontSize: 13, color: kDimText)),
+          Text(
+            'Tap to check in',
+            style: TextStyle(fontSize: 13, color: kDimText),
+          ),
           const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -647,12 +689,12 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
                 onTap: () => _pickMoodThenEnergy(mood),
                 child: Column(
                   children: [
-                    Text(_moodEmojis[i],
-                        style: const TextStyle(fontSize: 32)),
+                    Text(_moodEmojis[i], style: const TextStyle(fontSize: 32)),
                     const SizedBox(height: 4),
-                    Text(_moodLabels[i],
-                        style:
-                            TextStyle(fontSize: 11, color: kDimText)),
+                    Text(
+                      _moodLabels[i],
+                      style: TextStyle(fontSize: 11, color: kDimText),
+                    ),
                   ],
                 ),
               );
@@ -680,9 +722,10 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('This week',
-              style:
-                  TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+          const Text(
+            'This week',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          ),
           const SizedBox(height: 14),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -690,8 +733,9 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
               final day = entry.value;
               final dateStr =
                   '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
-              final moodEntry =
-                  _moodLog.where((e) => e.date == dateStr).firstOrNull;
+              final moodEntry = _moodLog
+                  .where((e) => e.date == dateStr)
+                  .firstOrNull;
               final label =
                   dayLabels[day.weekday - 1 < 7 ? day.weekday - 1 : 0];
               return Column(
@@ -714,13 +758,16 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
                         : null,
                   ),
                   const SizedBox(height: 4),
-                  Text(label,
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: dateStr == _today ? kInk : kDimText,
-                          fontWeight: dateStr == _today
-                              ? FontWeight.w700
-                              : FontWeight.normal)),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: dateStr == _today ? kInk : kDimText,
+                      fontWeight: dateStr == _today
+                          ? FontWeight.w700
+                          : FontWeight.normal,
+                    ),
+                  ),
                 ],
               );
             }).toList(),
@@ -753,30 +800,32 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Center(
-                  child: Text('✍️',
-                      style: const TextStyle(fontSize: 14)),
+                  child: Text('✍️', style: const TextStyle(fontSize: 14)),
                 ),
               ),
               const SizedBox(width: 10),
-              const Text("Today's reflection",
-                  style: TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.w700)),
+              const Text(
+                "Today's reflection",
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+              ),
             ],
           ),
           const SizedBox(height: 14),
           if (_reflectionLoading)
             const Center(
-                child: Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ))
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
           else if (_reflectionPrompt != null) ...[
             Text(
               _reflectionPrompt!,
               style: TextStyle(
-                  fontSize: 14,
-                  color: kDimText,
-                  fontStyle: FontStyle.italic),
+                fontSize: 14,
+                color: kDimText,
+                fontStyle: FontStyle.italic,
+              ),
             ),
             const SizedBox(height: 12),
             // Show reply if we have one and not editing
@@ -794,11 +843,11 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
               ),
               const SizedBox(height: 8),
               GestureDetector(
-                onTap: () =>
-                    setState(() => _reflectionExpanded = true),
-                child: Text('Edit response',
-                    style: TextStyle(
-                        fontSize: 12, color: kDimText)),
+                onTap: () => setState(() => _reflectionExpanded = true),
+                child: Text(
+                  'Edit response',
+                  style: TextStyle(fontSize: 12, color: kDimText),
+                ),
               ),
             ] else ...[
               TextField(
@@ -822,13 +871,13 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
                 width: double.infinity,
                 height: 44,
                 child: ElevatedButton(
-                  onPressed:
-                      _reflectionSubmitting ? null : _submitReflection,
+                  onPressed: _reflectionSubmitting ? null : _submitReflection,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: kInk,
                     foregroundColor: kCard,
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                     elevation: 0,
                   ),
                   child: _reflectionSubmitting
@@ -836,11 +885,17 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
                           width: 18,
                           height: 18,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white))
-                      : const Text('Send to Kloudy',
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text(
+                          'Send to Kloudy',
                           style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600)),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                 ),
               ),
             ],
@@ -856,64 +911,70 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Self-care checklist',
-            style:
-                TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        const Text(
+          'Self-care checklist',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
         const SizedBox(height: 10),
-        ...(_selfCareTasks.map((task) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: GestureDetector(
-                onTap: () => _toggleSelfCare(task),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: task.isDone ? kGoldLight : kCard,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                        color:
-                            task.isDone ? kGold : kBorder),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(task.icon,
-                          size: 18,
-                          color:
-                              task.isDone ? kGold : kDimText),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          task.name,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color:
-                                task.isDone ? kInk : kInk,
-                            decoration: task.isDone
-                                ? TextDecoration.lineThrough
-                                : null,
-                            decorationColor: kDimText,
-                          ),
+        ...(_selfCareTasks.map(
+          (task) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: GestureDetector(
+              onTap: () => _toggleSelfCare(task),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: task.isDone ? kGoldLight : kCard,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: task.isDone ? kGold : kBorder),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      task.icon,
+                      size: 18,
+                      color: task.isDone ? kGold : kDimText,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        task.name,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: task.isDone ? kInk : kInk,
+                          decoration: task.isDone
+                              ? TextDecoration.lineThrough
+                              : null,
+                          decorationColor: kDimText,
                         ),
                       ),
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 200),
-                        child: task.isDone
-                            ? Icon(Icons.check_circle,
-                                key: const ValueKey('done'),
-                                color: kGold,
-                                size: 20)
-                            : Icon(
-                                Icons.radio_button_unchecked,
-                                key: const ValueKey('undone'),
-                                color: kBorder,
-                                size: 20),
-                      ),
-                    ],
-                  ),
+                    ),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child: task.isDone
+                          ? Icon(
+                              Icons.check_circle,
+                              key: const ValueKey('done'),
+                              color: kGold,
+                              size: 20,
+                            )
+                          : Icon(
+                              Icons.radio_button_unchecked,
+                              key: const ValueKey('undone'),
+                              color: kBorder,
+                              size: 20,
+                            ),
+                    ),
+                  ],
                 ),
               ),
-            ))),
+            ),
+          ),
+        )),
       ],
     );
   }
@@ -925,11 +986,15 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Things to try today',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        const Text(
+          'Things to try today',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
         const SizedBox(height: 4),
-        Text('Refreshes daily · tap to mark done',
-            style: TextStyle(fontSize: 12, color: kDimText)),
+        Text(
+          'Refreshes daily · tap to mark done',
+          style: TextStyle(fontSize: 12, color: kDimText),
+        ),
         const SizedBox(height: 10),
         SizedBox(
           height: 130,
@@ -948,13 +1013,9 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
                   width: 116,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: done
-                        ? Color.lerp(a.color, kGold, 0.25)
-                        : a.color,
+                    color: done ? Color.lerp(a.color, kGold, 0.25) : a.color,
                     borderRadius: BorderRadius.circular(18),
-                    border: done
-                        ? Border.all(color: kGold, width: 1.5)
-                        : null,
+                    border: done ? Border.all(color: kGold, width: 1.5) : null,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -962,15 +1023,13 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Icon(a.icon,
-                              size: 22,
-                              color: done
-                                  ? kGold
-                                  : kInk),
+                          Icon(a.icon, size: 22, color: done ? kGold : kInk),
                           if (streak > 0)
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 2),
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 color: Colors.white.withOpacity(0.6),
                                 borderRadius: BorderRadius.circular(10),
@@ -978,13 +1037,18 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Text('🔥',
-                                      style: TextStyle(fontSize: 10)),
+                                  const Text(
+                                    '🔥',
+                                    style: TextStyle(fontSize: 10),
+                                  ),
                                   const SizedBox(width: 2),
-                                  Text('$streak',
-                                      style: const TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w700)),
+                                  Text(
+                                    '$streak',
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
@@ -1005,14 +1069,16 @@ class _MentalWellnessScreenState extends State<MentalWellnessScreen> {
                         const SizedBox(height: 4),
                         Row(
                           children: [
-                            Icon(Icons.check_circle,
-                                size: 12, color: kGold),
+                            Icon(Icons.check_circle, size: 12, color: kGold),
                             const SizedBox(width: 3),
-                            Text('Done',
-                                style: TextStyle(
-                                    fontSize: 10,
-                                    color: kGold,
-                                    fontWeight: FontWeight.w600)),
+                            Text(
+                              'Done',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: kGold,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ],
                         ),
                       ],

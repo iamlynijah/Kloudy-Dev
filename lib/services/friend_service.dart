@@ -1,56 +1,59 @@
-import 'dart:math';
 import '../models/streak.dart';
+import 'supabase_service.dart';
 
-/// Manages friend connections and invite codes for streak competition.
-///
-/// This is in-memory only for now (resets on app restart) — it exists so
-/// the UI and flow can be fully built and tested before the real
-/// Supabase tables (`friend_connections`, `streak_shares`) are designed.
-/// Swapping this for real persistence later means replacing the bodies
-/// of these methods; the call sites in the UI don't need to change.
+/// Supabase-backed friend connections and opt-in shared streak lookup.
 class FriendService {
   FriendService._();
   static final FriendService instance = FriendService._();
 
   final List<StreakFriend> _friends = [];
-  String? _myInviteCode;
-
   List<StreakFriend> get friends => List.unmodifiable(_friends);
 
-  /// Generates (or returns the existing) invite code for the current
-  /// user to share with a friend. Codes are short and uppercase so
-  /// they're easy to read aloud or text — e.g. "KX7QPL".
-  String getOrCreateMyInviteCode() {
-    _myInviteCode ??= _generateCode();
-    return _myInviteCode!;
+  Future<String> getOrCreateMyInviteCode() async {
+    if (SupabaseService.currentUser == null) {
+      throw Exception('Sign in to invite friends.');
+    }
+    return SupabaseService.createFriendInvite();
   }
 
-  String _generateCode() {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no O/0/I/1 confusion
-    final rand = Random();
-    return List.generate(6, (_) => chars[rand.nextInt(chars.length)]).join();
+  Future<List<StreakFriend>> loadFriends() async {
+    if (SupabaseService.currentUser == null) {
+      _friends.clear();
+      return friends;
+    }
+    final rows = await SupabaseService.fetchFriends();
+    _friends
+      ..clear()
+      ..addAll(
+        rows.map(
+          (row) => StreakFriend(
+            id: row['friend_user_id'] as String,
+            name: row['display_name'] as String? ?? 'Kloudy friend',
+            sharedStreakNames: const [],
+          ),
+        ),
+      );
+    return friends;
   }
 
-  /// Connects to a friend using a code they shared. Returns the new
-  /// friend on success, or null if the code looks invalid.
-  ///
-  /// Mock implementation: any well-formed 6-character code "succeeds"
-  /// and creates a placeholder friend, since there's no backend lookup
-  /// yet. Replace with a real Supabase lookup by invite code later.
-  StreakFriend? connectWithCode(String code) {
+  Future<StreakFriend?> connectWithCode(String code) async {
     final trimmed = code.trim().toUpperCase();
     if (trimmed.length != 6) return null;
-
-    final friend = StreakFriend(
-      id: 'friend-${_friends.length + 1}',
-      name: 'Friend $trimmed',
-      sharedStreakNames: [],
+    final connectionId = await SupabaseService.acceptFriendInvite(trimmed);
+    await loadFriends();
+    return _friends.cast<StreakFriend?>().firstWhere(
+      (friend) => friend != null && friend.id == connectionId,
+      orElse: () => null,
     );
-    _friends.add(friend);
-    return friend;
   }
 
-  void removeFriend(String friendId) {
-    _friends.removeWhere((f) => f.id == friendId);
+  Future<Map<String, dynamic>?> sharedHabit(
+    String friendId,
+    String habitName,
+  ) => SupabaseService.fetchSharedHabit(friendId, habitName);
+
+  Future<void> removeFriend(String friendId) async {
+    await SupabaseService.removeFriend(friendId);
+    _friends.removeWhere((friend) => friend.id == friendId);
   }
 }

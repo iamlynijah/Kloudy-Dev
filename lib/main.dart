@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'screens/auth_gate.dart';
-import 'services/supabase_service.dart';
 import 'theme/kloudy_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await SupabaseService.initialize();
   runApp(const KloudyApp());
 }
 

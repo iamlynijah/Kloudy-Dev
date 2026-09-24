@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../models/user_onboarding_data.dart';
 import '../theme/kloudy_theme.dart';
 import 'create_account_screen.dart';
@@ -22,9 +23,10 @@ class _MeetKloudyScreenState extends State<MeetKloudyScreen>
       vsync: this,
       duration: const Duration(seconds: 3),
     )..repeat(reverse: true);
-    _floatAnim = Tween<double>(begin: -8, end: 8).animate(
-      CurvedAnimation(parent: _floatCtrl, curve: Curves.easeInOut),
-    );
+    _floatAnim = Tween<double>(
+      begin: -8,
+      end: 8,
+    ).animate(CurvedAnimation(parent: _floatCtrl, curve: Curves.easeInOut));
   }
 
   @override
@@ -58,163 +60,215 @@ class _MeetKloudyScreenState extends State<MeetKloudyScreen>
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
+    return _buildNewLanding(context);
+  }
 
+  Widget _buildNewLanding(BuildContext context) {
+    final size = MediaQuery.of(context).size;
     return Scaffold(
-      backgroundColor: kBackground,
+      backgroundColor: kKloudyNavy,
       body: Stack(
         children: [
-          // ── Subtle warm gradient top wash ─────────────────────────────────
           Positioned(
-            top: 0, left: 0, right: 0,
-            height: size.height * 0.55,
+            top: -size.height * 0.13,
+            right: -size.width * 0.28,
             child: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0xFFF0E9DF), kBackground],
+              width: size.width * 0.92,
+              height: size.width * 0.92,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: kKloudyCyan.withValues(alpha: 0.12),
+                  width: 42,
                 ),
               ),
             ),
           ),
-
-          // ── Content ───────────────────────────────────────────────────────
+          Positioned(
+            top: size.height * 0.19,
+            left: -80,
+            child: Container(
+              width: 190,
+              height: 190,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: kKloudyBlue.withValues(alpha: 0.10),
+              ),
+            ),
+          ),
           SafeArea(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Top brand mark
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(28, 20, 28, 0),
-                  child: const Text(
-                    'KLOUDY',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 2.4,
-                      color: kInk,
-                    ),
-                  ),
-                ),
-
-                // ── Floating mascot ──────────────────────────────────────────
-                Expanded(
-                  flex: 10,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: AnimatedBuilder(
-                      animation: _floatAnim,
-                      builder: (_, child) => Transform.translate(
-                        offset: Offset(0, _floatAnim.value),
-                        child: child,
-                      ),
-                      child: Image.asset(
-                        'assets/images/kloudy_mascot.png',
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                  ),
-                ),
-
-                // ── Headline copy ─────────────────────────────────────────────
-                Expanded(
-                  flex: 9,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(28, 0, 28, 0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text(
-                          'Hey, I\'m Kloudy!',
-                          style: TextStyle(
-                            fontSize: 36,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -1.2,
-                            color: kInk,
-                            height: 1.15,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        const Text(
-                          'Your personal guide to health, money, sleep,\nand the things nobody ever showed us.',
-                          style: TextStyle(
-                            fontSize: 15,
-                            color: kDimText,
-                            height: 1.65,
-                            letterSpacing: 0.1,
-                          ),
-                        ),
-                        const SizedBox(height: 36),
-
-                        // ── Pillars ──────────────────────────────────────────
-                        Row(
-                          children: [
-                            _Pillar(label: 'Health'),
-                            const SizedBox(width: 8),
-                            _Pillar(label: 'Wealth'),
-                            const SizedBox(width: 8),
-                            _Pillar(label: 'Wellness'),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // ── CTA ───────────────────────────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-                  child: Column(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
                     children: [
                       SizedBox(
-                        width: double.infinity,
-                        height: 56,
-                        child: ElevatedButton(
-                          onPressed: _getStarted,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: kInk,
-                            foregroundColor: kCard,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                'Get Started',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: -0.2,
-                                ),
-                              ),
-                              SizedBox(width: 8),
-                              Icon(Icons.arrow_forward_rounded, size: 18),
-                            ],
-                          ),
+                        width: 38,
+                        height: 38,
+                        child: SvgPicture.asset(
+                          'assets/images/kloudy_mark.svg',
                         ),
                       ),
-                      const SizedBox(height: 14),
-                      GestureDetector(
-                        onTap: _getStarted,
+                      const SizedBox(width: 10),
+                      const Text(
+                        'KLOUDY',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.8,
+                        ),
+                      ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 11,
+                          vertical: 7,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.12),
+                          ),
+                        ),
                         child: const Text(
-                          'Already have an account?  Sign in',
+                          'A PLACE TO BEGIN',
                           style: TextStyle(
-                            fontSize: 14,
-                            color: kDimText,
-                            letterSpacing: 0.1,
+                            color: Color(0xFFC7EAE9),
+                            fontSize: 8,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.0,
                           ),
                         ),
                       ),
-                      const SizedBox(height: 8),
                     ],
                   ),
-                ),
-              ],
+                  Expanded(
+                    child: Center(
+                      child: AnimatedBuilder(
+                        animation: _floatAnim,
+                        builder: (_, child) => Transform.translate(
+                          offset: Offset(0, _floatAnim.value),
+                          child: child,
+                        ),
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Container(
+                              width: size.width * 0.62,
+                              height: size.width * 0.62,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: RadialGradient(
+                                  colors: [
+                                    kKloudyCyan.withValues(alpha: 0.18),
+                                    kKloudyBlue.withValues(alpha: 0.05),
+                                    Colors.transparent,
+                                  ],
+                                ),
+                              ),
+                            ),
+                            SizedBox(
+                              width: size.width * 0.64,
+                              height: size.width * 0.64,
+                              child: SvgPicture.asset(
+                                'assets/images/kloudy_mark.svg',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const Text(
+                    'ADULTING COMES\nWITH A LEARNING CURVE.',
+                    style: TextStyle(
+                      color: Color(0xFFBFC8FF),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.4,
+                      height: 1.7,
+                    ),
+                  ),
+                  const SizedBox(height: 11),
+                  const Text(
+                    'You don’t have to\nfigure it out alone.',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 34,
+                      height: 1.08,
+                      letterSpacing: -1.3,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 13),
+                  const Text(
+                    'Money, health, appointments, routines. Kloudy makes the things nobody explained feel easier to understand and manage.',
+                    style: TextStyle(
+                      color: Color(0xFFD1D4E7),
+                      fontSize: 14,
+                      height: 1.55,
+                    ),
+                  ),
+                  const SizedBox(height: 19),
+                  Wrap(
+                    spacing: 8,
+                    children: const [
+                      _LandingPill(
+                        icon: Icons.payments_outlined,
+                        label: 'Money',
+                      ),
+                      _LandingPill(
+                        icon: Icons.favorite_border_rounded,
+                        label: 'Health',
+                      ),
+                      _LandingPill(
+                        icon: Icons.calendar_month_outlined,
+                        label: 'Everyday life',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 22),
+                  SizedBox(
+                    height: 55,
+                    child: FilledButton(
+                      onPressed: _getStarted,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF7D88FF),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(17),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Find your starting point',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          SizedBox(width: 9),
+                          Icon(Icons.arrow_forward_rounded, size: 18),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 9),
+                  TextButton(
+                    onPressed: _getStarted,
+                    child: const Text(
+                      'Already have an account?  Sign in',
+                      style: TextStyle(color: Color(0xFFD1D4E7), fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -223,37 +277,34 @@ class _MeetKloudyScreenState extends State<MeetKloudyScreen>
   }
 }
 
-// ── Pillar chip ───────────────────────────────────────────────────────────────
-
-class _Pillar extends StatelessWidget {
+class _LandingPill extends StatelessWidget {
+  final IconData icon;
   final String label;
-  const _Pillar({required this.label});
+
+  const _LandingPill({required this.icon, required this.label});
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-      decoration: BoxDecoration(
-        color: kCard,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: kBorder),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+    decoration: BoxDecoration(
+      color: Colors.white.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.13)),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: kKloudyCyan, size: 14),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
           ),
-        ],
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w500,
-          color: kInk,
-          letterSpacing: 0.1,
         ),
-      ),
-    );
-  }
+      ],
+    ),
+  );
 }
